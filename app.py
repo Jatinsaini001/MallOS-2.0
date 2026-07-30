@@ -4,10 +4,10 @@ from database import shops_col, employees_col, products_col, orders_col, custome
     campaigns_col, coupons_col, feedback_col
 from auth import (init_auth_db, verify_user, login_user, logout_user, current_user, create_user,
                   is_logged_in, login_required, role_required,
-                  get_all_users, create_user, delete_user, update_password)
+                  get_all_users, delete_user, update_password)
 from bson import ObjectId
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 
 load_dotenv()
@@ -16,11 +16,9 @@ app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "mall_secret_2024")
 
 # ─── Session timeout ──────────────────────────────────────────────────────────
-from datetime import timedelta
-
 app.permanent_session_lifetime = timedelta(minutes=30)
 
-# Initialise SQLite users table on startup
+# Initialise users check/seeding on startup
 init_auth_db()
 
 # Inject current_user into every template automatically
@@ -55,7 +53,6 @@ def index():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    from datetime import timezone
     now       = datetime.utcnow()
     today_start = datetime(now.year, now.month, now.day)
     week_start  = today_start - timedelta(days=today_start.weekday())
@@ -73,7 +70,6 @@ def dashboard():
     revenue_agg  = list(orders_col.aggregate([{"$match": {"status": "completed"}}, {"$group": {"_id": None, "total": {"$sum": "$grand_total"}}}]))
     total_revenue = revenue_agg[0]['total'] if revenue_agg else 0
 
-    # ── Time-based sales KPIs ─────────────────────────────────────────────────
     def _sales_in_period(start):
         agg = list(orders_col.aggregate([
             {"$match": {"status": "completed", "created_at": {"$gte": start}}},
@@ -85,7 +81,6 @@ def dashboard():
     sales_weekly,  orders_weekly  = _sales_in_period(week_start)
     sales_monthly, orders_monthly = _sales_in_period(month_start)
 
-    # ── Top-selling products ──────────────────────────────────────────────────
     top_products = list(orders_col.aggregate([
         {"$match": {"status": "completed"}},
         {"$unwind": "$items"},
@@ -93,7 +88,6 @@ def dashboard():
         {"$sort": {"qty": -1}}, {"$limit": 5}
     ]))
 
-    # ── Monthly revenue trend (last 6 months) ─────────────────────────────────
     monthly_trend = list(orders_col.aggregate([
         {"$match": {"status": "completed"}},
         {"$group": {"_id": {"$dateToString": {"format": "%Y-%m", "date": "$created_at"}},
@@ -112,7 +106,6 @@ def dashboard():
     balance_agg      = list(suppliers_col.aggregate([{"$group": {"_id": None, "total": {"$sum": "$outstanding"}}}]))
     total_outstanding = balance_agg[0]['total'] if balance_agg else 0
 
-    # Phase 4 stats
     total_expense_agg = list(expenses_col.aggregate([{"$group": {"_id": None, "t": {"$sum": "$amount"}}}]))
     total_expenses    = total_expense_agg[0]['t'] if total_expense_agg else 0
     open_maintenance  = maintenance_col.count_documents({"status": "open"})
@@ -120,7 +113,6 @@ def dashboard():
     available_parking = parking_col.count_documents({"status": "available"})
     total_parking     = parking_col.count_documents({})
 
-    # Net profit
     net_profit = total_revenue - total_expenses
 
     return render_template('dashboard.html',
@@ -134,7 +126,6 @@ def dashboard():
         total_parking=total_parking,
         recent_shops=recent_shops, recent_employees=recent_employees, recent_orders=recent_orders,
         dept_agg=dept_agg, floor_agg=floor_agg, low_stock=low_stock,
-        # New enhanced data
         sales_today=sales_today, orders_today=orders_today,
         sales_weekly=sales_weekly, orders_weekly=orders_weekly,
         sales_monthly=sales_monthly, orders_monthly=orders_monthly,
@@ -188,7 +179,6 @@ def delete_employee(id):
     flash('Employee removed.', 'info')
     return redirect(url_for('employees'))
 
-# ─── Inventory ──────────────────────────────────────────────────────────────
 @app.route('/inventory', methods=['GET', 'POST'])
 @role_required('admin', 'manager')
 def inventory():
@@ -253,7 +243,6 @@ def delete_product(id):
     flash('Product deleted.', 'info')
     return redirect(url_for('inventory'))
 
-# ─── POS ────────────────────────────────────────────────────────────────────
 @app.route('/pos')
 @role_required('admin', 'cashier')
 def pos():
@@ -325,7 +314,7 @@ def pos_checkout():
         products_col.update_one({"_id": ObjectId(item['product_id'])}, {"$inc": {"stock": -item['qty']}})
 
     customer_id     = data.get('customer_id', '')
-    points_earned   = int(grand_total // 10)   # 1 point per ₹10 spent
+    points_earned   = int(grand_total // 10)
 
     order = {
         "order_id":       gen_order_id(),
@@ -346,9 +335,8 @@ def pos_checkout():
         "points_earned":  points_earned,
         "created_at":     datetime.utcnow()
     }
-    result = orders_col.insert_one(order)
+    orders_col.insert_one(order)
 
-    # Award loyalty points to registered customer
     if customer_id:
         try:
             customer = customers_col.find_one({"_id": ObjectId(customer_id)})
@@ -369,7 +357,6 @@ def pos_checkout():
                     "points_earned": points_earned,
                     "message": f"Sale completed! {order['order_id']}"})
 
-# ─── Orders ─────────────────────────────────────────────────────────────────
 @app.route('/orders')
 @login_required
 def orders():
@@ -423,22 +410,14 @@ def order_detail(id):
         return redirect(url_for('orders'))
     return render_template('order_detail.html', order=order)
 
-
 @app.route('/orders/view/<order_id>')
 @login_required
 def order_view(order_id):
-    """Look up order by human-readable order_id (e.g. ORD-1001), not MongoDB _id."""
     order = orders_col.find_one({"order_id": order_id})
     if not order:
         flash(f'Order {order_id} not found.', 'error')
         return redirect(url_for('orders'))
     return render_template('order_detail.html', order=order)
-
-# ══════════════════════════════════════════════════════════════════════════════
-# PHASE 3 — Customers & Suppliers
-# ══════════════════════════════════════════════════════════════════════════════
-
-# ─── Loyalty helpers ──────────────────────────────────────────────────────────
 
 TIERS = [
     ("Platinum", 5000, "#e2e8f4", "#a78bfa"),
@@ -471,8 +450,6 @@ def next_tier_info(points):
 app.jinja_env.globals['get_tier_color'] = get_tier_color
 app.jinja_env.globals['next_tier_info'] = next_tier_info
 app.jinja_env.globals['get_tier'] = get_tier
-
-# ─── Customers ────────────────────────────────────────────────────────────────
 
 @app.route('/customers', methods=['GET', 'POST'])
 @role_required('admin', 'manager')
@@ -520,7 +497,6 @@ def customers():
         total_points=total_points, tiers=TIERS
     )
 
-
 @app.route('/customers/detail/<id>')
 @role_required('admin', 'manager')
 def customer_detail(id):
@@ -533,14 +509,12 @@ def customer_detail(id):
     return render_template('customer_detail.html', customer=customer,
                            orders=cust_orders, tier_info=tier_info)
 
-
 @app.route('/customers/delete/<id>')
 @role_required('admin', 'manager')
 def delete_customer(id):
     customers_col.delete_one({"_id": ObjectId(id)})
     flash('Customer removed.', 'info')
     return redirect(url_for('customers'))
-
 
 @app.route('/customers/adjust_points/<id>', methods=['POST'])
 @role_required('admin', 'manager')
@@ -563,7 +537,6 @@ def adjust_points(id):
     flash(f"Points updated! Now {new_points} pts — {new_tier} tier.", 'success')
     return redirect(url_for('customer_detail', id=id))
 
-
 @app.route('/customers/search_ajax')
 @login_required
 def customers_search_ajax():
@@ -577,9 +550,6 @@ def customers_search_ajax():
     for r in results:
         r['_id'] = str(r['_id'])
     return jsonify(results)
-
-
-# ─── Suppliers ────────────────────────────────────────────────────────────────
 
 @app.route('/suppliers', methods=['GET', 'POST'])
 @role_required('admin', 'manager')
@@ -620,7 +590,6 @@ def suppliers():
         total_suppliers=total_suppliers, total_balance=total_balance, avg_rating=avg_rating
     )
 
-
 @app.route('/suppliers/detail/<id>')
 @role_required('admin', 'manager')
 def supplier_detail(id):
@@ -630,7 +599,6 @@ def supplier_detail(id):
         return redirect(url_for('suppliers'))
     linked_products = list(products_col.find({"supplier_id": str(id)}))
     return render_template('supplier_detail.html', supplier=supplier, products=linked_products)
-
 
 @app.route('/suppliers/edit/<id>', methods=['GET', 'POST'])
 @role_required('admin', 'manager')
@@ -655,14 +623,12 @@ def edit_supplier(id):
         return redirect(url_for('supplier_detail', id=id))
     return render_template('edit_supplier.html', supplier=supplier)
 
-
 @app.route('/suppliers/delete/<id>')
 @role_required('admin', 'manager')
 def delete_supplier(id):
     suppliers_col.delete_one({"_id": ObjectId(id)})
     flash('Supplier removed.', 'info')
     return redirect(url_for('suppliers'))
-
 
 @app.route('/suppliers/pay/<id>', methods=['POST'])
 @role_required('admin', 'manager')
@@ -676,14 +642,6 @@ def pay_supplier(id):
     suppliers_col.update_one({"_id": ObjectId(id)}, {"$set": {"outstanding": new_balance}})
     flash(f'Payment of {fmt_currency(amount)} recorded. Balance: {fmt_currency(new_balance)}', 'success')
     return redirect(url_for('supplier_detail', id=id))
-
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# PHASE 4 — Finance, Maintenance, Security, Mall Services
-# ══════════════════════════════════════════════════════════════════════════════
-
-# ─── Finance ──────────────────────────────────────────────────────────────────
 
 @app.route('/finance', methods=['GET', 'POST'])
 @role_required('admin')
@@ -726,9 +684,6 @@ def delete_expense(id):
     expenses_col.delete_one({"_id": ObjectId(id)})
     flash('Expense deleted.', 'info')
     return redirect(url_for('finance'))
-
-
-# ─── Maintenance ──────────────────────────────────────────────────────────────
 
 @app.route('/maintenance', methods=['GET', 'POST'])
 @role_required('admin', 'manager')
@@ -782,9 +737,6 @@ def delete_maintenance(id):
     maintenance_col.delete_one({"_id": ObjectId(id)})
     flash('Request deleted.', 'info')
     return redirect(url_for('maintenance'))
-
-
-# ─── Security ─────────────────────────────────────────────────────────────────
 
 @app.route('/security', methods=['GET', 'POST'])
 @role_required('admin', 'manager')
@@ -857,9 +809,6 @@ def delete_cctv(id):
     cctv_col.delete_one({"_id": ObjectId(id)})
     flash('Camera removed.', 'info')
     return redirect(url_for('security'))
-
-
-# ─── Mall Services ────────────────────────────────────────────────────────────
 
 @app.route('/mallservices', methods=['GET', 'POST'])
 @role_required('admin', 'manager')
@@ -968,14 +917,6 @@ def delete_parking(id):
     flash('Slot removed.', 'info')
     return redirect(url_for('mallservices'))
 
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# PHASE 5 — Marketing, Feedback, Reports, AI Insights
-# ══════════════════════════════════════════════════════════════════════════════
-
-# ─── Marketing ────────────────────────────────────────────────────────────────
-
 @app.route('/marketing', methods=['GET', 'POST'])
 @role_required('admin', 'manager')
 def marketing():
@@ -1030,7 +971,6 @@ def marketing():
         active_camp=active_camp, active_coup=active_coup, budget_total=budget_total
     )
 
-
 @app.route('/marketing/campaign/delete/<id>')
 @role_required('admin', 'manager')
 def delete_campaign(id):
@@ -1038,14 +978,12 @@ def delete_campaign(id):
     flash('Campaign deleted.', 'info')
     return redirect(url_for('marketing'))
 
-
 @app.route('/marketing/campaign/status/<id>', methods=['POST'])
 @role_required('admin', 'manager')
 def update_campaign_status(id):
     campaigns_col.update_one({"_id": ObjectId(id)}, {"$set": {"status": request.form['status']}})
     flash('Campaign updated!', 'success')
     return redirect(url_for('marketing'))
-
 
 @app.route('/marketing/coupon/toggle/<id>')
 @role_required('admin', 'manager')
@@ -1056,14 +994,12 @@ def toggle_coupon(id):
     flash('Coupon toggled.', 'info')
     return redirect(url_for('marketing'))
 
-
 @app.route('/marketing/coupon/delete/<id>')
 @role_required('admin', 'manager')
 def delete_coupon(id):
     coupons_col.delete_one({"_id": ObjectId(id)})
     flash('Coupon deleted.', 'info')
     return redirect(url_for('marketing'))
-
 
 @app.route('/marketing/coupon/validate', methods=['POST'])
 @login_required
@@ -1089,9 +1025,6 @@ def validate_coupon():
         disc = 0
     return jsonify({"valid": True, "discount": disc, "type": coupon['type'],
                     "value": coupon['value'], "message": f"Coupon applied! Save ₹{disc}"})
-
-
-# ─── Feedback ─────────────────────────────────────────────────────────────────
 
 @app.route('/feedback', methods=['GET', 'POST'])
 @role_required('admin', 'manager')
@@ -1146,7 +1079,6 @@ def feedback():
         shops_list=shops_list
     )
 
-
 @app.route('/feedback/delete/<id>')
 @role_required('admin', 'manager')
 def delete_feedback(id):
@@ -1154,18 +1086,13 @@ def delete_feedback(id):
     flash('Feedback deleted.', 'info')
     return redirect(url_for('feedback'))
 
-
-# ─── Reports ──────────────────────────────────────────────────────────────────
-
 @app.route('/reports')
 @role_required('admin', 'manager')
 def reports():
-    # ── Date-range filter ─────────────────────────────────────────────────────
     period         = request.args.get('period', 'all')
     date_from      = request.args.get('date_from', '')
     date_to        = request.args.get('date_to', '')
-    product_filter = request.args.get('product', '')
-
+    
     now        = datetime.utcnow()
     date_match = {"status": "completed"}
 
@@ -1186,12 +1113,8 @@ def reports():
         except Exception:
             pass
 
-    # ── Filtered orders list (for table + summary) ────────────────────────────
     filtered_orders = list(orders_col.find(date_match).sort("created_at", -1).limit(200))
-    filtered_revenue = sum(o.get('grand_total', 0) for o in filtered_orders)
-    filtered_count   = len(filtered_orders)
-
-    # ── Monthly sales trend (always last 6 months for trend chart) ────────────
+    
     monthly_sales = list(orders_col.aggregate([
         {"$match": {"status": "completed"}},
         {"$group": {"_id": {"$dateToString": {"format": "%Y-%m", "date": "$created_at"}},
@@ -1199,20 +1122,16 @@ def reports():
         {"$sort": {"_id": 1}}, {"$limit": 6}
     ]))
 
-
-    # Monthly expenses (last 6 months)
     monthly_expenses = list(expenses_col.aggregate([
         {"$group": {"_id": {"$substr": ["$date", 0, 7]}, "total": {"$sum": "$amount"}}},
         {"$sort": {"_id": 1}}, {"$limit": 6}
     ]))
 
-    # Sales by payment method
     payment_breakdown = list(orders_col.aggregate([
         {"$match": {"status": "completed"}},
         {"$group": {"_id": "$payment_method", "count": {"$sum": 1}, "total": {"$sum": "$grand_total"}}}
     ]))
 
-    # Top 5 products by qty sold
     top_products = list(orders_col.aggregate([
         {"$match": {"status": "completed"}},
         {"$unwind": "$items"},
@@ -1220,29 +1139,24 @@ def reports():
         {"$sort": {"qty": -1}}, {"$limit": 5}
     ]))
 
-    # Customer tier distribution
     tier_dist = list(customers_col.aggregate([
         {"$group": {"_id": "$tier", "count": {"$sum": 1}}}
     ]))
 
-    # Expense by category
     expense_by_cat = list(expenses_col.aggregate([
         {"$group": {"_id": "$category", "total": {"$sum": "$amount"}}},
         {"$sort": {"total": -1}}
     ]))
 
-    # Inventory stock health
     total_products  = products_col.count_documents({})
     low_stock       = products_col.count_documents({"$expr": {"$lte": ["$stock", "$low_stock_alert"]}})
     out_of_stock    = products_col.count_documents({"stock": 0})
     healthy_stock   = total_products - low_stock - out_of_stock
 
-    # Maintenance status breakdown
     maint_open   = maintenance_col.count_documents({"status": "open"})
     maint_prog   = maintenance_col.count_documents({"status": "in_progress"})
     maint_done   = maintenance_col.count_documents({"status": "resolved"})
 
-    # Summary KPIs
     total_revenue = list(orders_col.aggregate([{"$match": {"status": "completed"}}, {"$group": {"_id": None, "t": {"$sum": "$grand_total"}}}]))
     total_expense = list(expenses_col.aggregate([{"$group": {"_id": None, "t": {"$sum": "$amount"}}}]))
     rev = total_revenue[0]['t'] if total_revenue else 0
@@ -1258,13 +1172,9 @@ def reports():
         total_revenue=rev, total_expense=exp, net_profit=rev - exp
     )
 
-
-# ─── AI Insights ──────────────────────────────────────────────────────────────
-
 @app.route('/aiinsights')
 @role_required('admin', 'manager')
 def aiinsights():
-    # ── Sales prediction ──────────────────────────────────
     monthly_sales = list(orders_col.aggregate([
         {"$match": {"status": "completed"}},
         {"$group": {"_id": {"$dateToString": {"format": "%Y-%m", "date": "$created_at"}}, "revenue": {"$sum": "$grand_total"}}},
@@ -1280,7 +1190,6 @@ def aiinsights():
         trend = "stable"
         avg_growth = 0
 
-    # ── Inventory alerts ──────────────────────────────────
     critical_stock  = list(products_col.find({"stock": {"$lte": 2, "$gt": 0}}).sort("stock", 1))
     out_of_stock    = list(products_col.find({"stock": 0}))
     low_stock_items = list(products_col.find({"$expr": {"$lte": ["$stock", "$low_stock_alert"]}, "stock": {"$gt": 2}}).limit(10))
@@ -1292,13 +1201,6 @@ def aiinsights():
         {"$sort": {"qty": -1}}, {"$limit": 5}
     ]))
 
-    slow_movers_ids = {str(p['_id']) for p in products_col.find()}
-    sold_ids = {r['_id'] for r in orders_col.aggregate([
-        {"$unwind": "$items"},
-        {"$group": {"_id": "$items.product_name"}}
-    ])}
-
-    # ── Customer behaviour ────────────────────────────────
     top_customers = list(customers_col.find({"total_spent": {"$gt": 0}}).sort("total_spent", -1).limit(5))
     dormant_customers = list(customers_col.find({"visit_count": {"$lte": 1}}).limit(8))
 
@@ -1317,7 +1219,6 @@ def aiinsights():
     total_customers  = customers_col.count_documents({})
     retention_rate   = round(repeat_customers / total_customers * 100, 1) if total_customers else 0
 
-    # ── Finance health ────────────────────────────────────
     revenue_agg = list(orders_col.aggregate([{"$match": {"status": "completed"}}, {"$group": {"_id": None, "t": {"$sum": "$grand_total"}}}]))
     expense_agg = list(expenses_col.aggregate([{"$group": {"_id": None, "t": {"$sum": "$amount"}}}]))
     total_rev = revenue_agg[0]['t'] if revenue_agg else 0
@@ -1342,34 +1243,21 @@ def aiinsights():
         open_incidents=open_incidents, open_maint=open_maint, total_debt=total_debt
     )
 
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# PAYMENT SYSTEM — QR-based payment flow
-# ══════════════════════════════════════════════════════════════════════════════
-import uuid, time, os, hmac, hashlib
-
-# In-memory payment store { payment_id: {amount, status, expiry, order_data} }
+import uuid, time, hmac, hashlib
 
 def _rzp():
     key_id     = os.getenv("RAZORPAY_KEY_ID", "")
     key_secret = os.getenv("RAZORPAY_KEY_SECRET", "")
     if not key_id or not key_secret or key_id.startswith("REPLACE"):
-        raise ValueError("Razorpay keys not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in .env")
+        raise ValueError("Razorpay keys not configured.")
     import razorpay
     return razorpay.Client(auth=(key_id, key_secret))
-
-
 
 @app.route('/razorpay/ping')
 @login_required
 def razorpay_ping():
     key_id     = os.getenv("RAZORPAY_KEY_ID", "")
     key_secret = os.getenv("RAZORPAY_KEY_SECRET", "")
-    if not key_id or key_id.startswith("REPLACE"):
-        return jsonify({"ok": False, "error": "RAZORPAY_KEY_ID not set in .env"})
-    if not key_secret or key_secret.startswith("REPLACE"):
-        return jsonify({"ok": False, "error": "RAZORPAY_KEY_SECRET not set in .env"})
     try:
         import razorpay
         client = razorpay.Client(auth=(key_id, key_secret))
@@ -1377,416 +1265,9 @@ def razorpay_ping():
             "amount": 100, "currency": "INR",
             "receipt": "ping_test", "payment_capture": 1
         })
-        return jsonify({
-            "ok":       True,
-            "order_id": order["id"],
-            "key_id":   key_id[:12] + "...",
-            "mode":     "test" if "test" in key_id else "live",
-            "message":  "Razorpay connected successfully"
-        })
+        return jsonify({"ok": True, "order_id": order["id"]})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
-
-
-@app.route('/razorpay/create-order', methods=['POST'])
-@login_required
-def razorpay_create_order():
-    data   = request.get_json() or {}
-    amount = float(data.get('amount', 0))
-    cart   = data.get('cart', [])
-    if amount <= 0:
-        return jsonify({"success": False, "message": "Invalid amount"}), 400
-    if not cart:
-        return jsonify({"success": False, "message": "Cart is empty"}), 400
-    try:
-        client    = _rzp()
-        rzp_order = client.order.create({
-            "amount":          int(amount * 100),
-            "currency":        "INR",
-            "receipt":         f"rcpt_{uuid.uuid4().hex[:10]}",
-            "payment_capture": 1
-        })
-    except ValueError as e:
-        return jsonify({"success": False, "message": str(e)}), 503
-    except Exception as e:
-        app.logger.error(f"Razorpay create order error: {e}")
-        return jsonify({"success": False, "message": "Payment gateway error"}), 502
-
-    ok, qr_url = generate_qr(rzp_order["id"], amount)
-    payments_store[rzp_order["id"]] = {
-        "amount":               amount,
-        "status":               "pending",
-        "expiry":               time.time() + 600,
-        "cart":                 cart,
-        "qr_url":               qr_url,
-        "created_at":           datetime.utcnow().isoformat(),
-        "razorpay_payment_id":  None,
-        "razorpay_signature":   None,
-    }
-    return jsonify({
-        "success":              True,
-        "razorpay_order_id":    rzp_order["id"],
-        "amount":               int(amount * 100),
-        "currency":             "INR",
-        "key_id":               os.getenv("RAZORPAY_KEY_ID", ""),
-        "payment_id":           rzp_order["id"],
-    })
-
-
-@app.route('/razorpay/verify-payment', methods=['POST'])
-@login_required
-def razorpay_verify_payment():
-    data           = request.get_json() or {}
-    rzp_order_id   = data.get("razorpay_order_id", "")
-    rzp_payment_id = data.get("razorpay_payment_id", "")
-    rzp_signature  = data.get("razorpay_signature", "")
-
-    if not all([rzp_order_id, rzp_payment_id, rzp_signature]):
-        return jsonify({"success": False, "message": "Missing payment fields"}), 400
-
-    pending = payments_store.get(rzp_order_id)
-    if not pending:
-        return jsonify({"success": False, "message": "Order not found or expired"}), 404
-    if pending["status"] == "paid":
-        return jsonify({"success": True, "message": "Already paid", "order_id": pending.get("order_id")}), 200
-
-    key_secret = os.getenv("RAZORPAY_KEY_SECRET", "")
-    body       = f"{rzp_order_id}|{rzp_payment_id}"
-    expected   = hmac.new(key_secret.encode(), body.encode(), hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(expected, rzp_signature):
-        app.logger.warning(f"Razorpay signature mismatch for order {rzp_order_id}")
-        return jsonify({"success": False, "message": "Payment verification failed"}), 400
-
-    cart_data     = data.get("cart_data", {})
-    cart_raw      = pending["cart"]
-    discount_type  = cart_data.get("discount_type",  "none")
-    discount_value = float(cart_data.get("discount_value", 0))
-    customer_name  = cart_data.get("customer_name",  "Walk-in Customer").strip() or "Walk-in Customer"
-    customer_id    = cart_data.get("customer_id",    "")
-
-    line_items = []
-    subtotal   = 0.0
-    for item in cart_raw:
-        try:
-            product = products_col.find_one({"_id": ObjectId(item['product_id'])})
-        except Exception:
-            continue
-        if not product:
-            continue
-        qty        = int(item.get('qty', 1))
-        line_total = product['price'] * qty
-        subtotal  += line_total
-        line_items.append({
-            "product_id":   str(product['_id']),
-            "product_name": product['name'],
-            "sku":          product.get('sku', ''),
-            "qty":          qty,
-            "unit_price":   product['price'],
-            "line_total":   line_total,
-        })
-        products_col.update_one({"_id": ObjectId(item['product_id'])}, {"$inc": {"stock": -qty}})
-
-    discount_amt = 0.0
-    if discount_type == "percent":
-        discount_amt = round(subtotal * discount_value / 100, 2)
-    elif discount_type == "flat":
-        discount_amt = min(discount_value, subtotal)
-
-    grand_total   = round(subtotal - discount_amt, 2)
-    points_earned = int(grand_total // 10)
-
-    frontend_method = cart_data.get("payment_method", "razorpay")
-    pay_label       = "card" if frontend_method == "card" else "upi"
-
-    order_doc = {
-        "order_id":       gen_order_id(),
-        "customer_name":  customer_name,
-        "items":          line_items,
-        "subtotal":       subtotal,
-        "discount_type":  discount_type,
-        "discount_value": discount_value,
-        "discount_amt":   discount_amt,
-        "grand_total":    grand_total,
-        "payment_method": pay_label,
-        "payment_status": "paid",
-        "transaction_id": rzp_payment_id,
-        "gateway":        "razorpay",
-        "payment_time":   datetime.utcnow(),
-        "status":         "completed",
-        "customer_id":    customer_id,
-        "points_earned":  points_earned,
-        "created_at":     datetime.utcnow(),
-    }
-    orders_col.insert_one(order_doc)
-
-    if customer_id:
-        try:
-            customer = customers_col.find_one({"_id": ObjectId(customer_id)})
-            if customer:
-                new_points = customer.get('points', 0) + points_earned
-                customers_col.update_one({"_id": ObjectId(customer_id)}, {"$set": {
-                    "points":      new_points,
-                    "tier":        get_tier(new_points),
-                    "total_spent": round(customer.get('total_spent', 0) + grand_total, 2),
-                    "visit_count": customer.get('visit_count', 0) + 1,
-                    "last_visit":  datetime.utcnow(),
-                }})
-        except Exception:
-            pass
-
-    payments_store[rzp_order_id].update({
-        "status":               "paid",
-        "razorpay_payment_id":  rzp_payment_id,
-        "razorpay_signature":   rzp_signature,
-        "order_id":             order_doc["order_id"],
-    })
-    return jsonify({
-        "success":       True,
-        "order_id":      order_doc["order_id"],
-        "grand_total":   grand_total,
-        "points_earned": points_earned,
-        "receipt_url":   f"/receipt/{order_doc['order_id']}",
-        "message":       f"Payment verified! {order_doc['order_id']}",
-    })
-
-
-@app.route('/razorpay/webhook', methods=['POST'])
-def razorpay_webhook():
-    webhook_secret = os.getenv("RAZORPAY_WEBHOOK_SECRET", "")
-    received_sig   = request.headers.get("X-Razorpay-Signature", "")
-    body           = request.get_data()
-    if webhook_secret:
-        expected = hmac.new(webhook_secret.encode(), body, hashlib.sha256).hexdigest()
-        if not hmac.compare_digest(expected, received_sig):
-            app.logger.warning("Razorpay webhook signature mismatch")
-            return jsonify({"status": "invalid signature"}), 400
-    event      = request.get_json(silent=True) or {}
-    event_type = event.get("event", "")
-    if event_type == "payment.captured":
-        payload        = event.get("payload", {}).get("payment", {}).get("entity", {})
-        rzp_order_id   = payload.get("order_id", "")
-        rzp_payment_id = payload.get("id", "")
-        if rzp_order_id in payments_store and payments_store[rzp_order_id]["status"] != "paid":
-            payments_store[rzp_order_id].update({"status": "paid", "razorpay_payment_id": rzp_payment_id})
-            orders_col.update_one(
-                {"transaction_id": rzp_payment_id},
-                {"$set": {"payment_status": "paid", "payment_time": datetime.utcnow()}}
-            )
-    elif event_type == "payment.failed":
-        rzp_order_id = event.get("payload", {}).get("payment", {}).get("entity", {}).get("order_id", "")
-        if rzp_order_id in payments_store:
-            payments_store[rzp_order_id]["status"] = "failed"
-    return jsonify({"status": "ok"}), 200
-
-
-payments_store = {}
-
-PAYMENT_EXPIRY_SECS = 120
-
-def generate_qr(payment_id, amount):
-    """Generate QR code PNG. Falls back to SVG if qrcode/PIL not available."""
-    qr_dir  = os.path.join(app.static_folder, 'qr')
-    os.makedirs(qr_dir, exist_ok=True)
-    qr_path = os.path.join(qr_dir, f"{payment_id}.png")
-    data    = f"Pay ₹{amount} for Order {payment_id}"
-    try:
-        import qrcode
-        img = qrcode.make(data)
-        img.save(qr_path)
-        return True, f"qr/{payment_id}.png"
-    except ImportError:
-        # Fallback: write a minimal SVG as PNG placeholder
-        svg_path = os.path.join(qr_dir, f"{payment_id}.svg")
-        svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
-  <rect width="200" height="200" fill="#141820"/>
-  <rect x="20" y="20" width="60" height="60" fill="none" stroke="#2dd4bf" stroke-width="4"/>
-  <rect x="30" y="30" width="40" height="40" fill="#2dd4bf"/>
-  <rect x="120" y="20" width="60" height="60" fill="none" stroke="#2dd4bf" stroke-width="4"/>
-  <rect x="130" y="30" width="40" height="40" fill="#2dd4bf"/>
-  <rect x="20" y="120" width="60" height="60" fill="none" stroke="#2dd4bf" stroke-width="4"/>
-  <rect x="30" y="130" width="40" height="40" fill="#2dd4bf"/>
-  <rect x="85" y="85" width="30" height="30" fill="#2dd4bf"/>
-  <rect x="120" y="120" width="60" height="60" fill="none" stroke="#2dd4bf" stroke-width="2"/>
-  <rect x="130" y="130" width="10" height="10" fill="#2dd4bf"/>
-  <rect x="150" y="130" width="10" height="10" fill="#2dd4bf"/>
-  <rect x="130" y="150" width="10" height="10" fill="#2dd4bf"/>
-  <text x="100" y="195" text-anchor="middle" fill="#6b7a99" font-size="8" font-family="monospace">{payment_id[:16]}</text>
-</svg>"""
-        with open(svg_path, 'w') as f:
-            f.write(svg)
-        return False, f"qr/{payment_id}.svg"
-
-
-@app.route('/create-payment', methods=['POST'])
-@role_required('admin', 'cashier')
-def create_payment():
-    data   = request.get_json() or {}
-    amount = float(data.get('amount', 0))
-    cart   = data.get('cart', [])
-    
-    if amount <= 0:
-        return jsonify({"success": False, "message": "Invalid amount"}), 400
-
-    payment_id = str(uuid.uuid4())[:12].upper()
-    expiry     = time.time() + PAYMENT_EXPIRY_SECS
-
-    ok, qr_url = generate_qr(payment_id, amount)
-
-    payments_store[payment_id] = {
-        "amount":     amount,
-        "status":     "pending",
-        "expiry":     expiry,
-        "cart":       cart,
-        "qr_url":     qr_url,
-        "created_at": datetime.utcnow().isoformat()
-    }
-
-    return jsonify({"success": True, "payment_id": payment_id})
-
-
-@app.route('/payment/<payment_id>')
-@role_required('admin', 'cashier')
-def payment_page(payment_id):
-    p = payments_store.get(payment_id)
-    if not p:
-        flash("Payment not found or expired.", 'error')
-        return redirect(url_for('pos'))
-
-    remaining = max(0, int(p['expiry'] - time.time()))
-    expired   = remaining <= 0
-    if expired and p['status'] == 'pending':
-        payments_store[payment_id]['status'] = 'expired'
-        p['status'] = 'expired'
-
-    return render_template('payment.html',
-        payment_id=payment_id,
-        amount=p['amount'],
-        status=p['status'],
-        qr_url=p['qr_url'],
-        remaining=remaining,
-        expired=expired
-    )
-
-
-@app.route('/payment/<payment_id>/mark-paid', methods=['POST'])
-@role_required('admin', 'cashier')
-def mark_paid(payment_id):
-    p = payments_store.get(payment_id)
-    if not p:
-        return jsonify({"success": False, "message": "Payment not found"}), 404
-
-    if time.time() > p['expiry']:
-        payments_store[payment_id]['status'] = 'expired'
-        return jsonify({"success": False, "message": "Payment expired", "status": "expired"}), 400
-
-    if p['status'] == 'paid':
-        return jsonify({"success": True, "message": "Already paid", "status": "paid"})
-
-    payments_store[payment_id]['status'] = 'paid'
-
-    cart_raw      = p.get('cart', [])
-    data_extra    = request.get_json(silent=True) or {}
-    discount_type  = data_extra.get('discount_type',  'none')
-    discount_value = float(data_extra.get('discount_value', 0))
-    customer_name  = data_extra.get('customer_name', 'Walk-in Customer').strip() or 'Walk-in Customer'
-    customer_id    = data_extra.get('customer_id', '')
-
-    line_items = []
-    subtotal   = 0.0
-    for item in cart_raw:
-        try:
-            product = products_col.find_one({"_id": ObjectId(item['product_id'])})
-        except Exception:
-            continue
-        if not product:
-            continue
-        qty        = int(item.get('qty', 1))
-        line_total = product['price'] * qty
-        subtotal  += line_total
-        line_items.append({
-            "product_id":   str(product['_id']),
-            "product_name": product['name'],
-            "sku":          product.get('sku', ''),
-            "qty":          qty,
-            "unit_price":   product['price'],
-            "line_total":   line_total,
-        })
-        products_col.update_one({"_id": ObjectId(item['product_id'])}, {"$inc": {"stock": -qty}})
-
-    discount_amt = 0.0
-    if discount_type == 'percent':
-        discount_amt = round(subtotal * discount_value / 100, 2)
-    elif discount_type == 'flat':
-        discount_amt = min(discount_value, subtotal)
-
-    grand_total   = round(subtotal - discount_amt, 2) if line_items else p['amount']
-    points_earned = int(grand_total // 10)
-    txn_id        = f"UPI-{payment_id}"
-
-    order_doc = {
-        "order_id":       gen_order_id(),
-        "customer_name":  customer_name,
-        "items":          line_items,
-        "subtotal":       subtotal,
-        "discount_type":  discount_type,
-        "discount_value": discount_value,
-        "discount_amt":   discount_amt,
-        "grand_total":    grand_total,
-        "payment_method": "upi",
-        "payment_status": "paid",
-        "transaction_id": txn_id,
-        "gateway":        "upi",
-        "payment_time":   datetime.utcnow(),
-        "status":         "completed",
-        "customer_id":    customer_id,
-        "points_earned":  points_earned,
-        "created_at":     datetime.utcnow(),
-    }
-    orders_col.insert_one(order_doc)
-
-    if customer_id:
-        try:
-            customer = customers_col.find_one({"_id": ObjectId(customer_id)})
-            if customer:
-                new_points = customer.get('points', 0) + points_earned
-                customers_col.update_one({"_id": ObjectId(customer_id)}, {"$set": {
-                    "points":      new_points,
-                    "tier":        get_tier(new_points),
-                    "total_spent": round(customer.get('total_spent', 0) + grand_total, 2),
-                    "visit_count": customer.get('visit_count', 0) + 1,
-                    "last_visit":  datetime.utcnow(),
-                }})
-        except Exception:
-            pass
-
-    payments_store[payment_id]['order_id'] = order_doc['order_id']
-    return jsonify({
-        "success":       True,
-        "message":       "Payment confirmed!",
-        "status":        "paid",
-        "order_id":      order_doc['order_id'],
-        "grand_total":   grand_total,
-        "points_earned": points_earned,
-        "receipt_url":   f"/receipt/{order_doc['order_id']}",
-    })
-
-
-@app.route('/payment/<payment_id>/status')
-@login_required
-def payment_status(payment_id):
-    p = payments_store.get(payment_id)
-    if not p:
-        return jsonify({"status": "not_found"})
-    remaining = max(0, int(p['expiry'] - time.time()))
-    if remaining <= 0 and p['status'] == 'pending':
-        payments_store[payment_id]['status'] = 'expired'
-    return jsonify({"status": payments_store[payment_id]['status'], "remaining": remaining})
-
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# AUTH ROUTES — Login, Logout, User Management
-# ══════════════════════════════════════════════════════════════════════════════
 
 @app.route('/receipt/<order_id>')
 @login_required
@@ -1796,7 +1277,6 @@ def receipt(order_id):
         flash("Receipt not found.", "error")
         return redirect(url_for("orders"))
     return render_template("receipt.html", order=order)
-
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -1821,7 +1301,6 @@ def login():
         else:
             flash('Invalid username or password.', 'error')
     return render_template('login.html')
-
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -1851,14 +1330,12 @@ def register():
         return redirect(url_for('login'))
     return render_template('register.html', form={})
 
-
 @app.route('/logout')
 def logout():
     username = session.get('username', '')
     logout_user()
     flash(f'Goodbye, {username}! You have been logged out.', 'info')
     return redirect(url_for('login'))
-
 
 @app.route('/users', methods=['GET', 'POST'])
 @role_required('admin')
@@ -1880,15 +1357,15 @@ def manage_users():
                     flash(err, 'error')
 
         elif action == 'delete':
-            user_id = int(request.form.get('user_id', 0))
-            if user_id == session.get('user_id'):
+            user_id = request.form.get('user_id', '')
+            if user_id == str(session.get('user_id')):
                 flash("You cannot delete your own account.", 'error')
             else:
                 delete_user(user_id)
                 flash('User deleted.', 'info')
 
         elif action == 'change_password':
-            user_id      = int(request.form.get('user_id', 0))
+            user_id      = request.form.get('user_id', '')
             new_password = request.form.get('new_password', '').strip()
             if not new_password:
                 flash('New password cannot be empty.', 'error')
@@ -1900,278 +1377,6 @@ def manage_users():
 
     users = get_all_users()
     return render_template('users.html', users=users)
-
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# EXPORT ROUTES — PDF & Excel for Orders, Customers, Expenses
-# ══════════════════════════════════════════════════════════════════════════════
-import pandas as pd
-from io import BytesIO
-from flask import send_file, make_response
-from reportlab.lib.pagesizes import A4, landscape
-from reportlab.lib import colors
-from reportlab.lib.units import cm
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_CENTER, TA_LEFT
-
-
-# ─── Helpers ──────────────────────────────────────────────────────────────────
-
-def _rupee(val):
-    try:
-        return f"Rs.{float(val):,.0f}"
-    except:
-        return "Rs.0"
-
-
-def _pdf_response(buffer, filename):
-    buffer.seek(0)
-    response = make_response(buffer.read())
-    response.headers['Content-Type'] = 'application/pdf'
-    response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
-    return response
-
-
-def _excel_response(buffer, filename):
-    buffer.seek(0)
-    response = make_response(buffer.read())
-    response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
-    return response
-
-
-def _build_pdf(title, subtitle, headers, rows, filename, col_widths=None):
-    """Generic PDF builder using reportlab."""
-    buffer = BytesIO()
-    doc    = SimpleDocTemplate(buffer, pagesize=landscape(A4),
-                               leftMargin=1.5*cm, rightMargin=1.5*cm,
-                               topMargin=1.5*cm, bottomMargin=1.5*cm)
-    styles = getSampleStyleSheet()
-
-    title_style = ParagraphStyle('TitleStyle', parent=styles['Title'],
-                                 fontSize=16, textColor=colors.HexColor('#e2e8f4'),
-                                 spaceAfter=4)
-    sub_style   = ParagraphStyle('SubStyle', parent=styles['Normal'],
-                                 fontSize=9, textColor=colors.HexColor('#6b7a99'),
-                                 spaceAfter=12)
-
-    elements = [
-        Paragraph(title, title_style),
-        Paragraph(subtitle, sub_style),
-        Spacer(1, 0.3*cm),
-    ]
-
-    # Build table data
-    data = [headers] + rows
-
-    # Auto column widths if not given
-    page_w = landscape(A4)[0] - 3*cm
-    if col_widths is None:
-        col_widths = [page_w / len(headers)] * len(headers)
-
-    table = Table(data, colWidths=col_widths, repeatRows=1)
-    table.setStyle(TableStyle([
-        # Header row
-        ('BACKGROUND',  (0,0), (-1,0), colors.HexColor('#1c2130')),
-        ('TEXTCOLOR',   (0,0), (-1,0), colors.HexColor('#2dd4bf')),
-        ('FONTNAME',    (0,0), (-1,0), 'Helvetica-Bold'),
-        ('FONTSIZE',    (0,0), (-1,0), 8),
-        ('BOTTOMPADDING', (0,0), (-1,0), 8),
-        ('TOPPADDING',    (0,0), (-1,0), 8),
-        # Data rows
-        ('BACKGROUND',  (0,1), (-1,-1), colors.HexColor('#141820')),
-        ('TEXTCOLOR',   (0,1), (-1,-1), colors.HexColor('#e2e8f4')),
-        ('FONTNAME',    (0,1), (-1,-1), 'Helvetica'),
-        ('FONTSIZE',    (0,1), (-1,-1), 7.5),
-        ('ROWBACKGROUNDS', (0,1), (-1,-1),
-         [colors.HexColor('#141820'), colors.HexColor('#1c2130')]),
-        ('BOTTOMPADDING', (0,1), (-1,-1), 6),
-        ('TOPPADDING',    (0,1), (-1,-1), 6),
-        # Grid
-        ('GRID',        (0,0), (-1,-1), 0.4, colors.HexColor('#252d3d')),
-        ('ALIGN',       (0,0), (-1,-1), 'LEFT'),
-        ('VALIGN',      (0,0), (-1,-1), 'MIDDLE'),
-    ]))
-
-    elements.append(table)
-    doc.build(elements)
-    return _pdf_response(buffer, filename)
-
-
-# ─── Orders Export ─────────────────────────────────────────────────────────────
-
-@app.route('/export/orders/excel')
-@login_required
-def export_orders_excel():
-    raw = list(orders_col.find().sort("created_at", -1))
-    rows = []
-    for o in raw:
-        items = o.get("items", [])
-        products_str = ", ".join(
-            f"{item.get('product_name', item.get('name', '?'))} ×{item.get('qty', 1)}"
-            for item in items
-        ) if items else "—"
-        rows.append({
-            "Order ID":       o.get("order_id", ""),
-            "Customer":       o.get("customer_name", ""),
-            "Products":       products_str,
-            "Subtotal":       o.get("subtotal", 0),
-            "Discount":       o.get("discount_amt", 0),
-            "Grand Total":    o.get("grand_total", 0),
-            "Payment":        o.get("payment_method", "").upper(),
-            "Status":         o.get("status", "").title(),
-            "Points Earned":  o.get("points_earned", 0),
-            "Date":           o["created_at"].strftime("%d %b %Y %H:%M") if o.get("created_at") else "",
-        })
-
-    df     = pd.DataFrame(rows)
-    buffer = BytesIO()
-    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='Orders')
-        ws = writer.sheets['Orders']
-        # Auto-width columns
-        for col in ws.columns:
-            max_len = max((len(str(cell.value)) for cell in col if cell.value), default=10)
-            ws.column_dimensions[col[0].column_letter].width = min(max_len + 4, 40)
-
-    return _excel_response(buffer, f"orders_{datetime.utcnow().strftime('%Y%m%d')}.xlsx")
-
-
-@app.route('/export/orders/pdf')
-@login_required
-def export_orders_pdf():
-    raw     = list(orders_col.find().sort("created_at", -1))
-    headers = ["Order ID", "Customer", "Products Ordered", "Total", "Payment", "Status", "Date"]
-    rows    = []
-    for o in raw:
-        items = o.get("items", [])
-        products_str = ", ".join(
-            f"{item.get('product_name', item.get('name', '?'))} x{item.get('qty', 1)}"
-            for item in items
-        ) if items else "—"
-        rows.append([
-            o.get("order_id", ""),
-            o.get("customer_name", "")[:20],
-            products_str[:60],
-            _rupee(o.get("grand_total", 0)),
-            o.get("payment_method", "").upper(),
-            o.get("status", "").title(),
-            o["created_at"].strftime("%d %b %Y") if o.get("created_at") else "",
-        ])
-
-    col_widths = [3*cm, 4*cm, 8*cm, 3*cm, 2.5*cm, 2.5*cm, 3*cm]
-    subtitle   = f"Total {len(rows)} orders  |  Exported {datetime.utcnow().strftime('%d %b %Y %H:%M')} UTC"
-    return _build_pdf("Orders Report", subtitle, headers, rows,
-                      f"orders_{datetime.utcnow().strftime('%Y%m%d')}.pdf", col_widths)
-
-
-# ─── Customers Export ──────────────────────────────────────────────────────────
-
-@app.route('/export/customers/excel')
-@login_required
-def export_customers_excel():
-    raw  = list(customers_col.find().sort("points", -1))
-    rows = []
-    for c in raw:
-        rows.append({
-            "Name":          c.get("name", ""),
-            "Phone":         c.get("phone", ""),
-            "Email":         c.get("email", ""),
-            "Tier":          c.get("tier", "Bronze"),
-            "Points":        c.get("points", 0),
-            "Total Spent":   c.get("total_spent", 0),
-            "Visit Count":   c.get("visit_count", 0),
-            "Registered":    c["created_at"].strftime("%d %b %Y") if c.get("created_at") else "",
-        })
-
-    df     = pd.DataFrame(rows)
-    buffer = BytesIO()
-    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='Customers')
-        ws = writer.sheets['Customers']
-        for col in ws.columns:
-            max_len = max((len(str(cell.value)) for cell in col if cell.value), default=10)
-            ws.column_dimensions[col[0].column_letter].width = min(max_len + 4, 40)
-
-    return _excel_response(buffer, f"customers_{datetime.utcnow().strftime('%Y%m%d')}.xlsx")
-
-
-@app.route('/export/customers/pdf')
-@login_required
-def export_customers_pdf():
-    raw     = list(customers_col.find().sort("points", -1))
-    headers = ["Name", "Phone", "Email", "Tier", "Points", "Total Spent", "Visits", "Registered"]
-    rows    = []
-    for c in raw:
-        rows.append([
-            c.get("name", ""),
-            c.get("phone", ""),
-            c.get("email", "")[:22],
-            c.get("tier", "Bronze"),
-            str(c.get("points", 0)),
-            _rupee(c.get("total_spent", 0)),
-            str(c.get("visit_count", 0)),
-            c["created_at"].strftime("%d %b %Y") if c.get("created_at") else "",
-        ])
-
-    col_widths = [4*cm, 3.5*cm, 5*cm, 2.5*cm, 2*cm, 3*cm, 2*cm, 3.5*cm]
-    subtitle   = f"Total {len(rows)} customers  |  Exported {datetime.utcnow().strftime('%d %b %Y %H:%M')} UTC"
-    return _build_pdf("Customers Report", subtitle, headers, rows,
-                      f"customers_{datetime.utcnow().strftime('%Y%m%d')}.pdf", col_widths)
-
-
-# ─── Expenses Export ───────────────────────────────────────────────────────────
-
-@app.route('/export/expenses/excel')
-@role_required('admin')
-def export_expenses_excel():
-    raw  = list(expenses_col.find().sort("date", -1))
-    rows = []
-    for e in raw:
-        rows.append({
-            "Title":    e.get("title", ""),
-            "Category": e.get("category", ""),
-            "Amount":   e.get("amount", 0),
-            "Paid To":  e.get("paid_to", ""),
-            "Date":     e.get("date", ""),
-            "Note":     e.get("note", ""),
-        })
-
-    df     = pd.DataFrame(rows)
-    buffer = BytesIO()
-    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='Expenses')
-        ws = writer.sheets['Expenses']
-        for col in ws.columns:
-            max_len = max((len(str(cell.value)) for cell in col if cell.value), default=10)
-            ws.column_dimensions[col[0].column_letter].width = min(max_len + 4, 40)
-
-    return _excel_response(buffer, f"expenses_{datetime.utcnow().strftime('%Y%m%d')}.xlsx")
-
-
-@app.route('/export/expenses/pdf')
-@role_required('admin')
-def export_expenses_pdf():
-    raw     = list(expenses_col.find().sort("date", -1))
-    headers = ["Title", "Category", "Amount", "Paid To", "Date", "Note"]
-    rows    = []
-    for e in raw:
-        rows.append([
-            e.get("title", ""),
-            e.get("category", ""),
-            _rupee(e.get("amount", 0)),
-            e.get("paid_to", ""),
-            e.get("date", ""),
-            e.get("note", "")[:30],
-        ])
-
-    col_widths = [6*cm, 4*cm, 3.5*cm, 4*cm, 3*cm, 5*cm]
-    subtitle   = f"Total {len(rows)} records  |  Exported {datetime.utcnow().strftime('%d %b %Y %H:%M')} UTC"
-    return _build_pdf("Expense Report", subtitle, headers, rows,
-                      f"expenses_{datetime.utcnow().strftime('%Y%m%d')}.pdf", col_widths)
-
 
 if __name__ == '__main__':
     app.run(debug=True)
