@@ -1,120 +1,114 @@
 """
-auth.py — Authentication module for MallOS
-- SQLite-based users table (separate from MongoDB)
+auth.py — Authentication module for MallOS (MongoDB Version for Vercel)
+- MongoDB-based users collection
 - Password hashing with werkzeug
 - Session management helpers
 - login_required decorator
 """
 
-import sqlite3
 import os
 from functools import wraps
-from flask import session, redirect, url_for, flash
+from flask import session, redirect, url_for, flash, render_template
 from werkzeug.security import generate_password_hash, check_password_hash
+from pymongo import MongoClient
 
-AUTH_DB = os.path.join(os.path.dirname(__file__), 'users.db')
+# ── MongoDB Setup ─────────────────────────────────────────────────────────────
+MONGO_URI = os.getenv("MONGO_URI")
+DB_NAME = os.getenv("DB_NAME", "mall_management")
+
+client = MongoClient(MONGO_URI)
+db = client[DB_NAME]
+users_col = db["users"]
 
 
-# ── Database setup ────────────────────────────────────────────────────────────
+# ── Database setup & Seeding ──────────────────────────────────────────────────
 
 def init_auth_db():
-    """Create users table and seed default accounts if empty."""
-    conn = sqlite3.connect(AUTH_DB)
-    conn.row_factory = sqlite3.Row
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id       INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT    NOT NULL UNIQUE,
-            password TEXT    NOT NULL,
-            role     TEXT    NOT NULL DEFAULT 'cashier'
-                             CHECK(role IN ('admin', 'manager', 'cashier')),
-            created_at TEXT  DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    conn.commit()
-
-    # Seed default users only if table is empty
-    count = conn.execute('SELECT COUNT(*) FROM users').fetchone()[0]
-    if count == 0:
-        defaults = [
-            ('admin',   'admin123',   'admin'),
-            ('manager', 'manager123', 'manager'),
-            ('cashier', 'cashier123', 'cashier'),
-        ]
-        for username, password, role in defaults:
-            conn.execute(
-                'INSERT INTO users (username, password, role) VALUES (?, ?, ?)',
-                (username, generate_password_hash(password), role)
-            )
-        conn.commit()
-        print("[MallOS] Default users created — admin/admin123, manager/manager123, cashier/cashier123")
-
-    conn.close()
-
-
-def get_db():
-    conn = sqlite3.connect(AUTH_DB)
-    conn.row_factory = sqlite3.Row
-    return conn
+    """Seed default accounts if users collection is empty."""
+    try:
+        count = users_col.count_documents({})
+        if count == 0:
+            defaults = [
+                ('admin',   'admin123',   'admin'),
+                ('manager', 'manager123', 'manager'),
+                ('cashier', 'cashier123', 'cashier'),
+            ]
+            for username, password, role in defaults:
+                users_col.insert_one({
+                    'username': username.strip(),
+                    'password': generate_password_hash(password),
+                    'role': role
+                })
+            print("[MallOS] Default users created in MongoDB — admin/admin123, manager/manager123, cashier/cashier123")
+    except Exception as e:
+        print(f"[MallOS] Error initializing auth DB: {e}")
 
 
 # ── Auth helpers ──────────────────────────────────────────────────────────────
 
 def verify_user(username, password):
-    """Return user row if credentials valid, else None."""
-    conn = get_db()
-    user = conn.execute(
-        'SELECT * FROM users WHERE username = ?', (username.strip(),)
-    ).fetchone()
-    conn.close()
+    """Return user dict if credentials valid, else None."""
+    user = users_col.find_one({'username': username.strip()})
     if user and check_password_hash(user['password'], password):
-        return user
+        # Convert ObjectId to string id for compatibility
+        return {
+            'id': str(user['_id']),
+            'username': user['username'],
+            'role': user['role']
+        }
     return None
 
 
 def get_all_users():
-    conn = get_db()
-    users = conn.execute('SELECT id, username, role, created_at FROM users ORDER BY id').fetchall()
-    conn.close()
+    users = []
+    for u in users_col.find().sort('_id', 1):
+        users.append({
+            'id': str(u['_id']),
+            'username': u['username'],
+            'role': u['role'],
+            'created_at': str(u.get('_id').generation_time) if '_id' in u else ''
+        })
     return users
 
 
 def create_user(username, password, role):
     """Returns (True, None) or (False, error_message)."""
-    try:
-        conn = get_db()
-        conn.execute(
-            'INSERT INTO users (username, password, role) VALUES (?, ?, ?)',
-            (username.strip(), generate_password_hash(password), role)
-        )
-        conn.commit()
-        conn.close()
-        return True, None
-    except sqlite3.IntegrityError:
-        return False, f"Username '{username}' already exists."
+    cleaned_username = username.strip()
+    existing = users_col.find_one({'username': cleaned_username})
+    if existing:
+        return False, f"Username '{cleaned_username}' already exists."
+    
+    users_col.insert_one({
+        'username': cleaned_username,
+        'password': generate_password_hash(password),
+        'role': role
+    })
+    return True, None
 
 
 def delete_user(user_id):
-    conn = get_db()
-    conn.execute('DELETE FROM users WHERE id = ?', (user_id,))
-    conn.commit()
-    conn.close()
+    from bson.objectid import ObjectId
+    try:
+        users_col.delete_one({'_id': ObjectId(user_id)})
+    except Exception:
+        pass
 
 
 def update_password(user_id, new_password):
-    conn = get_db()
-    conn.execute(
-        'UPDATE users SET password = ? WHERE id = ?',
-        (generate_password_hash(new_password), user_id)
-    )
-    conn.commit()
-    conn.close()
+    from bson.objectid import ObjectId
+    try:
+        users_col.update_one(
+            {'_id': ObjectId(user_id)},
+            {'$set': {'password': generate_password_hash(new_password)}}
+        )
+    except Exception:
+        pass
 
 
 # ── Session helpers ───────────────────────────────────────────────────────────
 
 def login_user(user):
-    session['user_id']   = user['id']
+    session['user_id']   = str(user['id'])
     session['username']  = user['username']
     session['role']      = user['role']
     session.permanent    = True
@@ -166,12 +160,11 @@ def role_required(*roles):
                 return redirect(url_for('login'))
             user_role = session.get('role')
             if user_role not in roles:
-                from flask import render_template
                 return render_template('access_denied.html',
                     required_roles=roles,
                     user_role=user_role,
                     route=f.__name__
                 ), 403
             return f(*args, **kwargs)
-        return decorated
+        return decorator
     return decorator
