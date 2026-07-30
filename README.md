@@ -1,257 +1,340 @@
-# 🏬 MallOS — Mall Management System
+# 🏬 MallOS 2.0
 
-> A full-stack Flask + MongoDB web application for managing a shopping mall.
-> Built in 2 phases with a clean dark-theme dashboard and sidebar navigation.
+## Smart Mall Operating System
+
+![MallOS Banner](assets/screenshots/banner.png)
+
+A complete Mall Management System designed to digitize and simplify modern mall operations.
+
+MallOS provides a centralized platform for managing POS billing, inventory, tenants, employees, suppliers, finance, security, and digital payments through an integrated management solution.
 
 ---
 
-## 📁 Complete Project Structure
+# 📌 About MallOS
+
+MallOS started as a basic Mall Management System focused on solving daily operational challenges in mall administration.
+
+With continuous improvements and new features, MallOS has evolved into a more advanced management platform.
+
+**MallOS 2.0** introduces:
+
+* Improved user experience
+* Advanced management modules
+* Secure authentication
+* Digital payment integration
+* Better business workflow handling
+
+The goal remains the same:
+
+> Build a smart and efficient operating system for mall management.
+
+---
+
+# 🚀 Features & Modules
+
+## 🧾 POS & Billing System
+
+Manage complete sales operations from a single platform.
+
+Features:
+
+* Point of Sale (POS)
+* Order management
+* Invoice generation
+* Receipt generation
+* Payment tracking
+* QR based payments
+* Razorpay payment integration
+
+---
+
+## 📦 Inventory Management
+
+Control products and stock efficiently.
+
+Features:
+
+* Product management
+* Stock monitoring
+* Category management
+* Supplier management
+* Inventory updates
+
+---
+
+## 🏢 Tenant & Shop Management
+
+Manage mall shops and tenant operations.
+
+Features:
+
+* Shop registration
+* Tenant records
+* Shop allocation
+* Tenant information management
+* Rental management support
+
+---
+
+## 👨‍💼 Employee Management
+
+Maintain employee information and access control.
+
+Features:
+
+* Employee records
+* Staff management
+* Role-based permissions
+* User activity management
+
+---
+
+## 💰 Finance Management
+
+Track financial activities of the mall.
+
+Features:
+
+* Revenue tracking
+* Transaction history
+* Payment records
+* Financial reports
+
+---
+
+## 🔐 Authentication & Security
+
+Secure access management system.
+
+Features:
+
+* User authentication
+* Role-based authorization
+* Protected routes
+* Admin controls
+
+---
+
+## 📊 Dashboard & Business Insights
+
+Monitor important business information.
+
+Features:
+
+* Operational overview
+* Data visualization
+* Business monitoring
+* Performance tracking
+
+---
+
+# 🏗️ System Architecture
 
 ```
-mall_phase2/
+                     Users
+                       |
+                       |
+               Web Interface
+                       |
+                       |
+              Flask Application
+                       |
+        --------------------------------
+        |                              |
+    MongoDB                      SQLite Auth DB
+        |
+ Business Data Management
+```
+
+---
+
+# 🛠️ Tech Stack
+
+## Backend
+
+* Python
+* Flask
+
+## Frontend
+
+* HTML5
+* CSS3
+* JavaScript
+
+## Database
+
+* MongoDB
+* SQLite
+
+## Payment Integration
+
+* Razorpay API
+
+## Development Tools
+
+* Git
+* GitHub
+* VS Code
+
+---
+
+# 📂 Project Structure
+
+```
+MallOS-2.0/
+
 │
-├── app.py                        ← Main Flask app — all routes (Phase 1 + 2)
-├── database.py                   ← MongoDB connection + all collections
-├── requirements.txt              ← Python dependencies
-├── .env                          ← Environment variables (MongoDB URI, secret key)
+├── app.py
+├── auth.py
+├── database.py
+├── tenant.py
+├── requirements.txt
+├── README.md
 │
-├── templates/                    ← Jinja2 HTML templates
-│   ├── base.html                 ← Master layout: sidebar, topbar, flash messages
-│   ├── dashboard.html            ← Home stats, recent activity, low-stock alerts
-│   ├── shops.html                ← Add, view, search, delete shops
-│   ├── employees.html            ← Add, view, search, delete employees
-│   ├── inventory.html            ← Add, view, filter, delete products + stock badges
-│   ├── edit_product.html         ← Edit existing product form
-│   ├── pos.html                  ← POS terminal: cart, discounts, payment, checkout
-│   ├── orders.html               ← All orders with status pipeline + filters
-│   └── order_detail.html         ← Full receipt view for a single order
+├── static/
+│   ├── css/
+│   ├── js/
+│   └── qr/
 │
-└── static/
-    ├── css/
-    │   └── style.css             ← Full dark theme stylesheet (Phase 1 + Phase 2 styles)
-    └── js/
-        └── main.js               ← Flash auto-dismiss, stat count-up animations
+├── templates/
+│
+└── assets/
+    └── screenshots/
 ```
 
 ---
 
-## 🧩 Modules Overview
+# ⚙️ Installation & Setup
 
-### Phase 1
+## 1. Clone Repository
 
-| Module       | URL           | Description                                          |
-|--------------|---------------|------------------------------------------------------|
-| Dashboard    | `/dashboard`  | Stats overview: shops, employees, revenue, payroll   |
-| Shops        | `/shops`      | Manage shop tenants, floors, rent info               |
-| Employees    | `/employees`  | Manage staff: role, department, salary, join date    |
-
-### Phase 2
-
-| Module       | URL                       | Description                                              |
-|--------------|---------------------------|----------------------------------------------------------|
-| Inventory    | `/inventory`              | Product catalog with stock levels, cost/price, SKU       |
-| Edit Product | `/inventory/edit/<id>`    | Edit any existing product                                |
-| POS          | `/pos`                    | Point-of-sale terminal: cart, discounts, payments        |
-| Orders       | `/orders`                 | Track all orders — pending / completed / returned        |
-| Order Detail | `/orders/detail/<id>`     | Full receipt: items, discount breakdown, payment info    |
-
----
-
-## 🗄️ Database Schema (MongoDB)
-
-### Collection: `shops`
-```json
-{
-  "shop_name":   "Zara",
-  "tenant_name": "Fashion Pvt Ltd",
-  "floor":       "1st Floor",
-  "rent":        80000,
-  "contact":     "9876543210",
-  "category":    "Fashion",
-  "created_at":  "2024-01-01T00:00:00Z"
-}
+```bash
+git clone https://github.com/Jatinsaini001/MallOS-2.0.git
 ```
 
-### Collection: `employees`
-```json
-{
-  "name":       "Rahul Sharma",
-  "role":       "Security Guard",
-  "department": "Security",
-  "salary":     25000,
-  "contact":    "9876543210",
-  "join_date":  "2024-01-15",
-  "created_at": "2024-01-15T00:00:00Z"
-}
+## 2. Open Project
+
+```bash
+cd MallOS-2.0
 ```
 
-### Collection: `products`
-```json
-{
-  "name":            "Levis Jeans",
-  "sku":             "LEV-001",
-  "category":        "Clothing",
-  "price":           2499,
-  "cost":            1200,
-  "stock":           50,
-  "unit":            "pcs",
-  "low_stock_alert": 5,
-  "created_at":      "2024-01-01T00:00:00Z"
-}
-```
+## 3. Install Dependencies
 
-### Collection: `orders`
-```json
-{
-  "order_id":       "ORD-1001",
-  "customer_name":  "Walk-in Customer",
-  "items": [
-    {
-      "product_id":   "abc123",
-      "product_name": "Levis Jeans",
-      "sku":          "LEV-001",
-      "qty":          2,
-      "unit_price":   2499,
-      "line_total":   4998
-    }
-  ],
-  "subtotal":       4998,
-  "discount_type":  "percent",
-  "discount_value": 10,
-  "discount_amt":   499.8,
-  "grand_total":    4498.2,
-  "payment_method": "upi",
-  "status":         "completed",
-  "created_at":     "2024-01-20T14:30:00Z"
-}
-```
-
----
-
-## 🔗 Module Integration Map
-
-```
-POS ──────────────────────► Orders (creates order on checkout)
- │                               │
- └──► Inventory (deducts stock)  └──► Inventory (restores stock on return)
-
-Dashboard ◄── reads all 4 collections (shops, employees, products, orders)
-```
-
-- **POS → Inventory:** Each sale automatically decrements `stock` using MongoDB `$inc`
-- **POS → Orders:** Every completed sale creates a new document in `orders` collection
-- **Orders → Inventory:** Changing order status to `returned` restores the stock back
-- **Dashboard:** Aggregates live stats from all collections — revenue, payroll, low-stock alerts
-
----
-
-## ⚙️ Local Setup & Run
-
-### 1. Install dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Configure `.env`
-```env
-# Local MongoDB
-MONGO_URI=mongodb://localhost:27017/
+## 4. Environment Configuration
 
-# OR MongoDB Atlas (for cloud/Render deployment)
-# MONGO_URI=mongodb+srv://<user>:<password>@cluster.mongodb.net/
+Create a `.env` file:
 
-DB_NAME=mall_management
-SECRET_KEY=your_random_secret_key_here
+```
+RAZORPAY_KEY_ID=your_key
+RAZORPAY_KEY_SECRET=your_secret
 ```
 
-### 3. Make sure MongoDB is running locally
-```bash
-# On Linux/Mac
-mongod
+## 5. Run Application
 
-# On Windows (if installed as service, it runs automatically)
-```
-
-### 4. Run the app
 ```bash
 python app.py
 ```
 
-### 5. Open in browser
-```
-http://localhost:5000
-```
+---
+
+# 📸 Application Screenshots
+
+## 🏬 MallOS 2.0 (Latest Version)
+
+### Landing Page
+
+![MallOS 2.0 Landing](assets/screenshots/mallos2-landing.jpeg)
+
+### Dashboard
+
+![MallOS 2.0 Dashboard](assets/screenshots/mallos2-dashboard.jpeg)
+
+### POS System
+
+![MallOS 2.0 POS](assets/screenshots/mallos2-pos.jpeg)
+
+### Inventory Management
+
+![MallOS 2.0 Inventory](assets/screenshots/mallos2-inventory.jpeg)
+
+### Payment Module
+
+![MallOS 2.0 Payment](assets/screenshots/mallos2-payment.jpeg)
 
 ---
 
-## ☁️ Deploy to Render (Free)
+# 🏬 MallOS 1.0 (Original Version)
 
-### Step 1 — Push to GitHub
-```bash
-git init
-git add .
-git commit -m "MallOS Phase 2"
-git remote add origin https://github.com/yourusername/mallos.git
-git push -u origin main
-```
+MallOS 1.0 was the foundation version focused on basic mall management operations.
 
-### Step 2 — Set up MongoDB Atlas (required for cloud)
-1. Go to [https://www.mongodb.com/atlas](https://www.mongodb.com/atlas)
-2. Create a free cluster
-3. Click **Connect** → **Drivers** → copy the connection string
-4. It looks like: `mongodb+srv://user:password@cluster0.xxxxx.mongodb.net/`
+### Dashboard
 
-### Step 3 — Deploy on Render
-1. Go to [https://render.com](https://render.com) → **New** → **Web Service**
-2. Connect your GitHub repo
-3. Fill in settings:
+![MallOS 1.0 Dashboard](assets/screenshots/mallos1-dashboard.jpeg)
 
-| Setting           | Value                              |
-|-------------------|------------------------------------|
-| Runtime           | Python 3                           |
-| Build Command     | `pip install -r requirements.txt`  |
-| Start Command     | `gunicorn app:app`                 |
+### Reports & Analytics
 
-4. Add **Environment Variables** in Render dashboard:
+![MallOS 1.0 Reports & Analytics](assets/screenshots/mallos1-shops.jpeg)
 
-| Key          | Value                                  |
-|--------------|----------------------------------------|
-| `MONGO_URI`  | Your MongoDB Atlas connection string   |
-| `DB_NAME`    | `mall_management`                      |
-| `SECRET_KEY` | Any random string (e.g. `xyz_abc_123`) |
+### Inventory
 
-5. Click **Deploy** — your app will be live in ~2 minutes!
-
-> ⚠️ **Never use `localhost` MongoDB URI on Render.** Render servers can't reach your local machine. Always use Atlas.
+![MallOS 1.0 Inventory](assets/screenshots/mallos1-inventory.jpeg)
 
 ---
 
-## 🛠️ Tech Stack
+# 📌 Version History
 
-| Layer      | Technology              |
-|------------|-------------------------|
-| Backend    | Python 3, Flask         |
-| Database   | MongoDB (via PyMongo)   |
-| Frontend   | Jinja2, HTML5, CSS3, JS |
-| Fonts      | Syne, DM Sans (Google)  |
-| Deployment | Render + MongoDB Atlas  |
+## 🚀 MallOS 2.0
 
----
+Major improvements:
 
-## 📦 requirements.txt
-
-```
-flask
-pymongo
-python-dotenv
-gunicorn
-```
+* Added Razorpay payment integration
+* Improved authentication system
+* Enhanced POS workflow
+* Added advanced management modules
+* Improved UI/UX
+* Better project organization
 
 ---
 
-## 🚀 Future Phases (Planned)
+## 🌱 MallOS 1.0
 
-- **Phase 3:** Visitor & Parking Management
-- **Phase 4:** Maintenance & Complaints Tracker  
-- **Phase 5:** Reports & Analytics with charts
-- **Phase 6:** Multi-user login with roles (Admin, Manager, Cashier)
+Initial release:
+
+* Basic mall management system
+* Shop management
+* Inventory handling
+* Core administrative operations
+
+---
+
+# 🔮 Future Roadmap
+
+Future improvements planned:
+
+* Cloud deployment
+* Mobile application
+* AI-powered business insights
+* Multi-mall support
+* Automated analytics reports
+* Advanced tenant communication system
+
+---
+
+# 👨‍💻 Developer
+
+## Jatin Saini
+
+GitHub:
+https://github.com/Jatinsaini001
+
+---
+
+# ⭐ Support
+
+If you like this project, consider giving it a ⭐ on GitHub.
+
+Your support helps improve MallOS further.
