@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}Orders — MallOS{% endblock %}
+{% block page_label %}Retail{% endblock %}
+{% block page_heading %}Orders{% endblock %}
+{% block content %}
+
+<div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px">
+    <div class="stat-card accent-green">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <line x1="12" y1="1" x2="12" y2="23" />
+                <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
+            </svg></div>
+        <div class="stat-data">
+            <div class="stat-value">{{ total_revenue | currency }}</div>
+            <div class="stat-label">Revenue</div>
+        </div>
+    </div>
+    <div class="stat-card accent-blue">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+            </svg></div>
+        <div class="stat-data">
+            <div class="stat-value">{{ pending_count }}</div>
+            <div class="stat-label">Pending</div>
+        </div>
+    </div>
+    <div class="stat-card accent-teal">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <polyline points="20 6 9 17 4 12" />
+            </svg></div>
+        <div class="stat-data">
+            <div class="stat-value">{{ completed_count }}</div>
+            <div class="stat-label">Completed</div>
+        </div>
+    </div>
+    <div class="stat-card accent-rose">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <polyline points="1 4 1 10 7 10" />
+                <path d="M3.51 15a9 9 0 102.13-9.36L1 10" />
+            </svg></div>
+        <div class="stat-data">
+            <div class="stat-value">{{ returned_count }}</div>
+            <div class="stat-label">Returned</div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <h2 class="card-title">All Orders <span class="count-pill">{{ orders|length }}</span></h2>
+            <div class="filter-tabs">
+                <a href="?status=all" class="filter-tab {% if status=='all' %}active{% endif %}">All</a>
+                <a href="?status=completed"
+                    class="filter-tab {% if status=='completed' %}active{% endif %}">Completed</a>
+                <a href="?status=pending" class="filter-tab {% if status=='pending' %}active{% endif %}">Pending</a>
+                <a href="?status=returned" class="filter-tab {% if status=='returned' %}active{% endif %}">Returned</a>
+            </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <div class="export-btn-group">
+                <span class="export-label">Export:</span>
+                <a href="{{ url_for('export_orders_excel') }}" class="export-btn export-excel" title="Download Excel">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        style="width:13px;height:13px">
+                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                        <line x1="16" y1="13" x2="8" y2="13" />
+                        <line x1="16" y1="17" x2="8" y2="17" />
+                    </svg>
+                    Excel
+                </a>
+                <a href="{{ url_for('export_orders_pdf') }}" class="export-btn export-pdf" title="Download PDF">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        style="width:13px;height:13px">
+                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                    </svg>
+                    PDF
+                </a>
+            </div>
+            <form method="GET" class="search-form">
+                <input type="hidden" name="status" value="{{ status }}">
+                <input type="text" name="search" value="{{ search }}" class="search-input"
+                    placeholder="Order ID or customer...">
+                <button type="submit" class="btn-search">🔍</button>
+            </form>
+        </div>
+    </div>
+
+    {% if orders %}
+    <div class="table-wrap">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Order ID</th>
+                    <th>Products Ordered</th>
+                    <th>Subtotal</th>
+                    <th>Discount</th>
+                    <th>Total</th>
+                    <th>Payment</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for o in orders %}
+                <tr>
+                    <td><a href="{{ url_for('order_detail', id=o._id) }}" style="color:var(--teal);font-weight:600">{{
+                            o.order_id }}</a></td>
+                    <td>
+                        {% if o['items'] %}
+                        {% for item in o['items'] %}
+                        <span
+                            style="display:inline-block;background:var(--surface2,#1e2535);border:1px solid var(--border,#2a3347);border-radius:5px;padding:2px 7px;margin:2px 2px 2px 0;font-size:12px;white-space:nowrap">
+                            {{ item.get('product_name', item.get('name', '—')) }} <span style="opacity:.6">&times;{{
+                                item.get('qty',1) }}</span>
+                        </span>
+                        {% endfor %}
+                        {% else %}
+                        <span class="muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="muted">{{ o.subtotal | currency }}</td>
+                    <td class="muted">{% if o.discount_amt %}{{ o.discount_amt | currency }}{% else %}—{% endif %}</td>
+                    <td class="amount">{{ o.grand_total | currency }}</td>
+                    <td><span class="chip chip-blue">{{ o.payment_method|upper }}</span></td>
+                    <td><span class="status-chip status-{{ o.status }}">{{ o.status }}</span></td>
+                    <td class="muted" style="font-size:12px">{{ o.created_at.strftime('%d %b %y') if o.created_at else
+                        '—' }}</td>
+                    <td>
+                        <form method="POST" action="{{ url_for('update_order_status', id=o._id) }}"
+                            style="display:flex;gap:4px">
+                            <select name="status" class="form-input" style="padding:4px 8px;font-size:12px;width:auto">
+                                <option value="pending" {% if o.status=='pending' %}selected{% endif %}>Pending</option>
+                                <option value="completed" {% if o.status=='completed' %}selected{% endif %}>Completed
+                                </option>
+                                <option value="returned" {% if o.status=='returned' %}selected{% endif %}>Returned
+                                </option>
+                            </select>
+                            <button type="submit" class="btn-edit" style="white-space:nowrap">Update</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">No orders found. <a href="{{ url_for('pos') }}">Go to POS →</a></div>
+    {% endif %}
+</div>
+{% endblock %}

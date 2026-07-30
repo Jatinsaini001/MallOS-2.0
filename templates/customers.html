@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Customers — MallOS{% endblock %}
+{% block page_label %}People{% endblock %}
+{% block page_heading %}Customers{% endblock %}
+{% block content %}
+
+<div class="stats-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:24px">
+    <div class="stat-card accent-teal">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+        <div class="stat-data"><div class="stat-value">{{ total_customers }}</div><div class="stat-label">Total Customers</div></div>
+    </div>
+    {% for tier_name, threshold, _, color in tiers %}
+    <div class="stat-card" style="border-top:2px solid {{ color }}">
+        <div class="stat-icon" style="background:{{ color }}22;color:{{ color }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        </div>
+        <div class="stat-data"><div class="stat-value" style="color:{{ color }}">{{ tier_counts.get(tier_name, 0) }}</div><div class="stat-label">{{ tier_name }}</div></div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="two-col-wide">
+    <!-- Add Customer -->
+    <div class="card">
+        <div class="card-header"><h2 class="card-title">Register Customer</h2></div>
+        <form method="POST" class="form-grid">
+            <div class="form-group form-full"><label class="form-label">Full Name *</label><input type="text" name="name" class="form-input" required placeholder="e.g. Priya Singh"></div>
+            <div class="form-group"><label class="form-label">Phone *</label><input type="text" name="phone" class="form-input" required placeholder="9876543210"></div>
+            <div class="form-group"><label class="form-label">Email</label><input type="email" name="email" class="form-input" placeholder="priya@email.com"></div>
+            <div class="form-group form-full"><label class="form-label">Address</label><input type="text" name="address" class="form-input" placeholder="City, State"></div>
+            <div class="form-group form-full"><button type="submit" class="btn btn-primary">+ Register Customer</button></div>
+        </form>
+    </div>
+
+    <!-- Customers List -->
+    <div class="card card-wide">
+        <div class="card-header">
+            <h2 class="card-title">All Customers <span class="count-pill">{{ customers|length }}</span></h2>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+                <div class="filter-tabs">
+                    <a href="?tier=all" class="filter-tab {% if tier_filter=='all' %}active{% endif %}">All</a>
+                    {% for tier_item in tiers %}{% set t = tier_item[0] %}
+                    <a href="?tier={{ t }}" class="filter-tab {% if tier_filter==t %}active{% endif %}">{{ t }}</a>
+                    {% endfor %}
+                </div>
+                <form method="GET" class="search-form">
+                    <input type="hidden" name="tier" value="{{ tier_filter }}">
+                    <input type="text" name="search" value="{{ search }}" class="search-input" placeholder="Search...">
+                    <button type="submit" class="btn-search">🔍</button>
+                </form>
+                <div class="export-btn-group">
+                    <span class="export-label">Export:</span>
+                    <a href="{{ url_for('export_customers_excel') }}" class="export-btn export-excel" title="Download Excel">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                        Excel
+                    </a>
+                    <a href="{{ url_for('export_customers_pdf') }}" class="export-btn export-pdf" title="Download PDF">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        PDF
+                    </a>
+                </div>
+            </div>
+        </div>
+            </div>
+        </div>
+        {% if customers %}
+        <div class="table-wrap">
+            <table class="table">
+                <thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Tier</th><th>Points</th><th>Total Spent</th><th>Visits</th><th>Actions</th></tr></thead>
+                <tbody>
+                {% for c in customers %}
+                <tr>
+                    <td class="muted">{{ loop.index }}</td>
+                    <td><a href="{{ url_for('customer_detail', id=c._id) }}" style="color:var(--text);font-weight:600">{{ c.name }}</a></td>
+                    <td class="muted">{{ c.phone }}</td>
+                    <td>
+                        {% set tc = get_tier_color(c.tier) %}
+                        <span class="tier-badge" style="color:{{ tc }};background:{{ tc }}22;border:1px solid {{ tc }}44">{{ c.tier }}</span>
+                    </td>
+                    <td><span style="color:var(--teal);font-weight:600">{{ c.points or 0 }}</span></td>
+                    <td class="amount">{{ (c.total_spent or 0) | currency }}</td>
+                    <td class="muted">{{ c.visit_count or 0 }}</td>
+                    <td style="display:flex;gap:6px">
+                        <a href="{{ url_for('customer_detail', id=c._id) }}" class="btn-edit">View</a>
+                        <a href="{{ url_for('delete_customer', id=c._id) }}" class="btn-delete" onclick="return confirm('Delete customer?')">Del</a>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">No customers found. Register your first one!</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+{% block title %}Reports — MallOS{% endblock %}
+{% block page_label %}Growth{% endblock %}
+{% block page_heading %}Reports & Analytics{% endblock %}
+{% block content %}
+
+<!-- Export Panel -->
+<div class="export-panel">
+    <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:13px;font-weight:600;color:var(--text)">📥 Export Data</span>
+        <span style="font-size:12px;color:var(--muted)">Download reports as PDF or Excel</span>
+    </div>
+    <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center">
+        <div style="display:flex;align-items:center;gap:8px">
+            <span class="export-group-label">Orders</span>
+            <a href="{{ url_for('export_orders_excel') }}" class="export-btn export-excel">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg>
+                Excel
+            </a>
+            <a href="{{ url_for('export_orders_pdf') }}" class="export-btn export-pdf">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                PDF
+            </a>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+            <span class="export-group-label">Customers</span>
+            <a href="{{ url_for('export_customers_excel') }}" class="export-btn export-excel">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg>
+                Excel
+            </a>
+            <a href="{{ url_for('export_customers_pdf') }}" class="export-btn export-pdf">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                PDF
+            </a>
+        </div>
+        {% if current_user and current_user.role == 'admin' %}
+        <div style="display:flex;align-items:center;gap:8px">
+            <span class="export-group-label">Expenses</span>
+            <a href="{{ url_for('export_expenses_excel') }}" class="export-btn export-excel">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg>
+                Excel
+            </a>
+            <a href="{{ url_for('export_expenses_pdf') }}" class="export-btn export-pdf">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                PDF
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- KPI Row -->
+<div class="stats-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px">
+    <div class="stat-card accent-green">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></div>
+        <div class="stat-data"><div class="stat-value">{{ total_revenue | currency }}</div><div class="stat-label">Total Revenue</div></div>
+    </div>
+    <div class="stat-card accent-rose">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/></svg></div>
+        <div class="stat-data"><div class="stat-value">{{ total_expense | currency }}</div><div class="stat-label">Total Expenses</div></div>
+    </div>
+    <div class="stat-card {% if net_profit >= 0 %}accent-teal{% else %}accent-rose{% endif %}">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div>
+        <div class="stat-data"><div class="stat-value">{{ net_profit | currency }}</div><div class="stat-label">Net {% if net_profit >= 0 %}Profit{% else %}Loss{% endif %}</div></div>
+    </div>
+</div>
+
+<!-- Charts Grid -->
+<div class="charts-grid">
+
+    <!-- Chart 1: Monthly Sales -->
+    <div class="card chart-card">
+        <div class="card-header"><h2 class="card-title">📈 Monthly Revenue</h2></div>
+        <div style="padding:20px">
+        {% if monthly_sales %}
+            {% set max_rev = monthly_sales | map(attribute='revenue') | max %}
+            {% for m in monthly_sales %}
+            <div class="chart-bar-row">
+                <span class="chart-label">{{ m._id }}</span>
+                <div class="chart-bar-track">
+                    <div class="chart-bar-fill bar-teal" style="width:{{ (m.revenue / max_rev * 100)|int if max_rev else 0 }}%"></div>
+                </div>
+                <span class="chart-val">{{ m.revenue | currency }}</span>
+            </div>
+            {% endfor %}
+        {% else %}<div class="empty-state">No sales data yet.</div>{% endif %}
+        </div>
+    </div>
+
+    <!-- Chart 2: Expenses vs Revenue -->
+    <div class="card chart-card">
+        <div class="card-header"><h2 class="card-title">💸 Expense by Category</h2></div>
+        <div style="padding:20px">
+        {% if expense_by_cat %}
+            {% set max_exp = expense_by_cat | map(attribute='total') | max %}
+            {% for e in expense_by_cat %}
+            <div class="chart-bar-row">
+                <span class="chart-label">{{ e._id or 'Other' }}</span>
+                <div class="chart-bar-track">
+                    <div class="chart-bar-fill bar-rose" style="width:{{ (e.total / max_exp * 100)|int if max_exp else 0 }}%"></div>
+                </div>
+                <span class="chart-val">{{ e.total | currency }}</span>
+            </div>
+            {% endfor %}
+        {% else %}<div class="empty-state">No expense data yet.</div>{% endif %}
+        </div>
+    </div>
+
+    <!-- Chart 3: Top Products -->
+    <div class="card chart-card">
+        <div class="card-header"><h2 class="card-title">🏆 Top Products by Sales</h2></div>
+        <div style="padding:20px">
+        {% if top_products %}
+            {% set max_qty = top_products | map(attribute='qty') | max %}
+            {% for p in top_products %}
+            <div class="chart-bar-row">
+                <span class="chart-label">{{ p._id[:18] }}{% if p._id|length > 18 %}…{% endif %}</span>
+                <div class="chart-bar-track">
+                    <div class="chart-bar-fill bar-amber" style="width:{{ (p.qty / max_qty * 100)|int if max_qty else 0 }}%"></div>
+                </div>
+                <span class="chart-val">{{ p.qty }} units</span>
+            </div>
+            {% endfor %}
+        {% else %}<div class="empty-state">No sales data yet.</div>{% endif %}
+        </div>
+    </div>
+
+    <!-- Chart 4: Payment Methods -->
+    <div class="card chart-card">
+        <div class="card-header"><h2 class="card-title">💳 Payment Methods</h2></div>
+        <div style="padding:20px">
+        {% if payment_breakdown %}
+            {% set max_p = payment_breakdown | map(attribute='count') | max %}
+            {% for p in payment_breakdown %}
+            {% set method = p._id | lower if p._id else 'unknown' %}
+            {% if method == 'cash' %}
+                {% set icon = '💵' %} {% set color = 'bar-green' %}
+            {% elif method == 'card' %}
+                {% set icon = '💳' %} {% set color = 'bar-blue' %}
+            {% elif method == 'upi' %}
+                {% set icon = '📱' %} {% set color = 'bar-teal' %}
+            {% elif method == 'razorpay' %}
+                {% set icon = '🔒' %} {% set color = 'bar-purple' %}
+            {% else %}
+                {% set icon = '💰' %} {% set color = 'bar-purple' %}
+            {% endif %}
+            <div class="chart-bar-row">
+                <span class="chart-label">{{ icon }} {{ method | upper }}</span>
+                <div class="chart-bar-track">
+                    <div class="chart-bar-fill {{ color }}" style="width:{{ (p.count / max_p * 100)|int if max_p else 0 }}%"></div>
+                </div>
+                <span class="chart-val">{{ p.count }} orders · ₹{{ '{:,.0f}'.format(p.total) }}</span>
+            </div>
+            {% endfor %}
+        {% else %}<div class="empty-state">No payment data yet.</div>{% endif %}
+        </div>
+    </div>
+
+    <!-- Chart 5: Customer Tiers -->
+    <div class="card chart-card">
+        <div class="card-header"><h2 class="card-title">⭐ Customer Loyalty Tiers</h2></div>
+        <div style="padding:20px">
+        {% if tier_dist %}
+            {% set max_t = tier_dist | map(attribute='count') | max %}
+            {% set tier_colors = {'Platinum': 'bar-purple', 'Gold': 'bar-amber', 'Silver': 'bar-muted', 'Bronze': 'bar-orange'} %}
+            {% for t in tier_dist %}
+            <div class="chart-bar-row">
+                <span class="chart-label">{{ t._id or 'Unknown' }}</span>
+                <div class="chart-bar-track">
+                    <div class="chart-bar-fill {{ tier_colors.get(t._id, 'bar-teal') }}" style="width:{{ (t.count / max_t * 100)|int if max_t else 0 }}%"></div>
+                </div>
+                <span class="chart-val">{{ t.count }} customers</span>
+            </div>
+            {% endfor %}
+        {% else %}<div class="empty-state">No customer data yet.</div>{% endif %}
+        </div>
+    </div>
+
+    <!-- Chart 6: Inventory Health -->
+    <div class="card chart-card">
+        <div class="card-header"><h2 class="card-title">📦 Inventory Health</h2></div>
+        <div style="padding:20px">
+            <div class="chart-bar-row">
+                <span class="chart-label">Healthy</span>
+                <div class="chart-bar-track">
+                    <div class="chart-bar-fill bar-teal" style="width:{{ (healthy_stock / total_products * 100)|int if total_products else 0 }}%"></div>
+                </div>
+                <span class="chart-val">{{ healthy_stock }}</span>
+            </div>
+            <div class="chart-bar-row">
+                <span class="chart-label">Low Stock</span>
+                <div class="chart-bar-track">
+                    <div class="chart-bar-fill bar-amber" style="width:{{ (low_stock / total_products * 100)|int if total_products else 0 }}%"></div>
+                </div>
+                <span class="chart-val">{{ low_stock }}</span>
+            </div>
+            <div class="chart-bar-row">
+                <span class="chart-label">Out of Stock</span>
+                <div class="chart-bar-track">
+                    <div class="chart-bar-fill bar-rose" style="width:{{ (out_of_stock / total_products * 100)|int if total_products else 0 }}%"></div>
+                </div>
+                <span class="chart-val">{{ out_of_stock }}</span>
+            </div>
+            <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+                <div class="chart-bar-row">
+                    <span class="chart-label">Maint. Open</span>
+                    <div class="chart-bar-track">
+                        <div class="chart-bar-fill bar-amber" style="width:{% set mt = maint_open+maint_prog+maint_done %}{{ (maint_open/mt*100)|int if mt else 0 }}%"></div>
+                    </div>
+                    <span class="chart-val">{{ maint_open }}</span>
+                </div>
+                <div class="chart-bar-row">
+                    <span class="chart-label">In Progress</span>
+                    <div class="chart-bar-track">
+                        <div class="chart-bar-fill bar-purple" style="width:{% set mt = maint_open+maint_prog+maint_done %}{{ (maint_prog/mt*100)|int if mt else 0 }}%"></div>
+                    </div>
+                    <span class="chart-val">{{ maint_prog }}</span>
+                </div>
+                <div class="chart-bar-row">
+                    <span class="chart-label">Resolved</span>
+                    <div class="chart-bar-track">
+                        <div class="chart-bar-fill bar-teal" style="width:{% set mt = maint_open+maint_prog+maint_done %}{{ (maint_done/mt*100)|int if mt else 0 }}%"></div>
+                    </div>
+                    <span class="chart-val">{{ maint_done }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

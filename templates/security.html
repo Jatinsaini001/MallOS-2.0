@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}Security — MallOS{% endblock %}
+{% block page_label %}Operations{% endblock %}
+{% block page_heading %}Security{% endblock %}
+{% block content %}
+
+<div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px">
+    <div class="stat-card accent-amber">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/></svg></div>
+        <div class="stat-data"><div class="stat-value">{{ open_count }}</div><div class="stat-label">Open Incidents</div></div>
+    </div>
+    <div class="stat-card accent-rose">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+        <div class="stat-data"><div class="stat-value">{{ critical_count }}</div><div class="stat-label">Critical</div></div>
+    </div>
+    <div class="stat-card accent-green">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="2"/><path d="M22 12c-2.667 4.667-6 7-10 7s-7.333-2.333-10-7c2.667-4.667 6-7 10-7s7.333 2.333 10 7"/></svg></div>
+        <div class="stat-data"><div class="stat-value">{{ active_cameras }}</div><div class="stat-label">Active CCTV</div></div>
+    </div>
+    <div class="stat-card accent-rose">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div>
+        <div class="stat-data"><div class="stat-value">{{ faulty_cameras }}</div><div class="stat-label">Faulty CCTV</div></div>
+    </div>
+</div>
+
+<div class="two-col" style="margin-bottom:20px">
+    <!-- Report Incident -->
+    <div class="card">
+        <div class="card-header"><h2 class="card-title">Report Incident</h2></div>
+        <form method="POST" class="form-grid">
+            <input type="hidden" name="action" value="add_incident">
+            <div class="form-group form-full"><label class="form-label">Incident Title *</label><input type="text" name="title" class="form-input" required placeholder="e.g. Shoplifting at Zone B"></div>
+            <div class="form-group"><label class="form-label">Location *</label><input type="text" name="location" class="form-input" required placeholder="e.g. Ground Floor, Gate 2"></div>
+            <div class="form-group"><label class="form-label">Severity *</label>
+                <select name="severity" class="form-input" required>
+                    <option value="low">Low</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="high">High</option>
+                    <option value="critical">🔴 Critical</option>
+                </select>
+            </div>
+            <div class="form-group"><label class="form-label">Category</label>
+                <select name="category" class="form-input">
+                    <option>Theft</option><option>Fight/Assault</option><option>Fire</option>
+                    <option>Medical</option><option>Vandalism</option><option>Trespassing</option>
+                    <option>Suspicious Activity</option><option>Other</option>
+                </select>
+            </div>
+            <div class="form-group form-full"><label class="form-label">Description</label><input type="text" name="description" class="form-input" placeholder="Details..."></div>
+            <div class="form-group form-full"><label class="form-label">Reported By</label><input type="text" name="reported_by" class="form-input" placeholder="Guard name / ID"></div>
+            <div class="form-group form-full"><button type="submit" class="btn btn-primary" style="background:var(--rose)">🚨 Report Incident</button></div>
+        </form>
+    </div>
+
+    <!-- Add CCTV -->
+    <div class="card">
+        <div class="card-header"><h2 class="card-title">Add CCTV Camera</h2></div>
+        <form method="POST" class="form-grid">
+            <input type="hidden" name="action" value="add_cctv">
+            <div class="form-group"><label class="form-label">Camera ID *</label><input type="text" name="camera_id" class="form-input" required placeholder="e.g. CAM-01"></div>
+            <div class="form-group"><label class="form-label">Floor</label>
+                <select name="floor" class="form-input">
+                    <option>Ground Floor</option><option>1st Floor</option><option>2nd Floor</option>
+                    <option>3rd Floor</option><option>Basement</option><option>Parking</option>
+                </select>
+            </div>
+            <div class="form-group form-full"><label class="form-label">Location *</label><input type="text" name="location_cctv" class="form-input" required placeholder="e.g. Main Entrance, East Wing"></div>
+            <div class="form-group form-full"><label class="form-label">Status</label>
+                <select name="cam_status" class="form-input">
+                    <option value="active">Active</option>
+                    <option value="faulty">Faulty</option>
+                    <option value="offline">Offline</option>
+                    <option value="maintenance">Under Maintenance</option>
+                </select>
+            </div>
+            <div class="form-group form-full"><button type="submit" class="btn btn-primary">+ Add Camera</button></div>
+        </form>
+    </div>
+</div>
+
+<!-- Incidents Table -->
+<div class="card" style="margin-bottom:20px">
+    <div class="card-header"><h2 class="card-title">Incident Reports <span class="count-pill">{{ incidents|length }}</span></h2></div>
+    {% if incidents %}
+    <div class="table-wrap">
+        <table class="table">
+            <thead><tr><th>#</th><th>Incident</th><th>Location</th><th>Category</th><th>Severity</th><th>Reported By</th><th>Status</th><th>Date</th><th>Action</th></tr></thead>
+            <tbody>
+            {% for i in incidents %}
+            <tr>
+                <td class="muted">{{ loop.index }}</td>
+                <td><strong>{{ i.title }}</strong>{% if i.description %}<div class="muted" style="font-size:11px">{{ i.description[:50] }}{% if i.description|length > 50 %}...{% endif %}</div>{% endif %}</td>
+                <td class="muted">{{ i.location }}</td>
+                <td><span class="chip chip-blue">{{ i.category }}</span></td>
+                <td><span class="severity-badge severity-{{ i.severity }}">{{ i.severity|upper }}</span></td>
+                <td class="muted">{{ i.reported_by or '—' }}</td>
+                <td><span class="maint-status maint-{{ i.status }}">{{ i.status|title }}</span></td>
+                <td class="muted" style="font-size:11px">{{ i.created_at.strftime('%d %b %y') if i.created_at else '—' }}</td>
+                <td style="display:flex;gap:4px">
+                    <form method="POST" action="{{ url_for('update_incident', id=i._id) }}">
+                        <select name="status" class="form-input" style="padding:4px 6px;font-size:11px;width:auto">
+                            <option value="open" {% if i.status=='open' %}selected{% endif %}>Open</option>
+                            <option value="investigating" {% if i.status=='investigating' %}selected{% endif %}>Investigating</option>
+                            <option value="resolved" {% if i.status=='resolved' %}selected{% endif %}>Resolved</option>
+                        </select>
+                        <button type="submit" class="btn-edit" style="margin-top:4px">Save</button>
+                    </form>
+                    <a href="{{ url_for('delete_incident', id=i._id) }}" class="btn-delete" onclick="return confirm('Delete?')" style="align-self:flex-start">Del</a>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">No incidents reported. All clear! ✅</div>
+    {% endif %}
+</div>
+
+<!-- CCTV Panel -->
+<div class="card">
+    <div class="card-header"><h2 class="card-title">CCTV Status Panel <span class="count-pill">{{ cameras|length }} cameras</span></h2></div>
+    {% if cameras %}
+    <div style="padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px">
+        {% for cam in cameras %}
+        <div class="cctv-card cctv-{{ cam.status }}">
+            <div class="cctv-header">
+                <span class="cctv-id">{{ cam.camera_id }}</span>
+                <div class="cctv-dot cctv-dot-{{ cam.status }}"></div>
+            </div>
+            <div class="cctv-location">{{ cam.location }}</div>
+            <div class="cctv-floor">{{ cam.floor }}</div>
+            <div style="display:flex;gap:4px;margin-top:8px">
+                <form method="POST" action="{{ url_for('update_cctv', id=cam._id) }}" style="flex:1">
+                    <select name="status" class="form-input" style="padding:4px 6px;font-size:11px;width:100%;margin-bottom:4px" onchange="this.form.submit()">
+                        <option value="active" {% if cam.status=='active' %}selected{% endif %}>Active</option>
+                        <option value="faulty" {% if cam.status=='faulty' %}selected{% endif %}>Faulty</option>
+                        <option value="offline" {% if cam.status=='offline' %}selected{% endif %}>Offline</option>
+                        <option value="maintenance" {% if cam.status=='maintenance' %}selected{% endif %}>Maintenance</option>
+                    </select>
+                </form>
+                <a href="{{ url_for('delete_cctv', id=cam._id) }}" class="btn-delete" onclick="return confirm('Remove?')" style="align-self:flex-start;padding:4px 6px">✕</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">No CCTV cameras added yet.</div>
+    {% endif %}
+</div>
+{% endblock %}

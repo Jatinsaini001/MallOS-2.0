@@ -1,0 +1,551 @@
+{% extends "base.html" %}
+{% block title %}POS — MallOS{% endblock %}
+{% block page_label %}Retail{% endblock %}
+{% block page_heading %}Point of Sale{% endblock %}
+
+{% block content %}
+<div class="pos-layout">
+
+    <!-- Left: Product Grid -->
+    <div class="pos-products">
+        <div class="pos-toolbar">
+            <input type="text" id="pos-search" class="form-input" placeholder="🔍 Search product or SKU..." oninput="filterProducts()">
+            <div class="filter-tabs" style="flex-shrink:0">
+                <a class="filter-tab active" onclick="filterByCategory('')" id="cat-all">All</a>
+                {% for cat in categories %}
+                <a class="filter-tab" onclick="filterByCategory('{{ cat }}')" id="cat-{{ loop.index }}">{{ cat }}</a>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="product-grid" id="product-grid">
+            {% for p in products %}
+            <div class="product-card" 
+                 data-id="{{ p._id }}" 
+                 data-name="{{ p.name }}" 
+                 data-price="{{ p.price }}" 
+                 data-stock="{{ p.stock }}"
+                 data-sku="{{ p.sku or '' }}"
+                 data-unit="{{ p.unit or 'pcs' }}"
+                 data-category="{{ p.category or '' }}"
+                 onclick="addToCart(this)">
+                <div class="product-cat-dot" style="background:{{ loop.cycle('var(--teal)','var(--amber)','var(--blue)','var(--green)','var(--rose)') }}"></div>
+                <div class="product-name">{{ p.name }}</div>
+                <div class="product-sku">{{ p.sku or 'No SKU' }}</div>
+                <div class="product-price">{{ p.price | currency }}</div>
+                <div class="product-stock {% if p.stock <= 5 %}stock-warn{% endif %}">{{ p.stock }} {{ p.unit or 'pcs' }}</div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% if not products %}
+        <div class="empty-state">No products in inventory. <a href="{{ url_for('inventory') }}">Add products →</a></div>
+        {% endif %}
+    </div>
+
+    <!-- Right: Cart -->
+    <div class="pos-cart">
+        <div class="cart-header">
+            <h2 class="cart-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:18px;height:18px"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+                Cart
+            </h2>
+            <button class="btn-icon" onclick="clearCart()" title="Clear cart">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+            </button>
+        </div>
+
+        <div class="cart-customer">
+            <label class="form-label" style="margin-bottom:5px;display:block">Customer (optional)</label>
+            <div style="position:relative">
+                <input type="text" id="customer-search" class="form-input" placeholder="Search by name or phone..." autocomplete="off" oninput="searchCustomer()">
+                <div id="customer-dropdown" class="customer-dropdown" style="display:none"></div>
+            </div>
+            <input type="hidden" id="customer-id" value="">
+            <div id="customer-selected" class="customer-selected" style="display:none">
+                <div id="customer-info"></div>
+                <button onclick="clearCustomer()" class="btn-icon-sm">✕</button>
+            </div>
+        </div>
+
+        <div class="cart-items" id="cart-items">
+            <div class="cart-empty" id="cart-empty">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:40px;height:40px;color:var(--muted)"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/></svg>
+                <p>Cart is empty</p>
+            </div>
+        </div>
+
+        <div class="cart-footer">
+            <div class="cart-discount">
+                <label class="form-label">Discount</label>
+                <div style="display:flex;gap:8px">
+                    <select id="discount-type" class="form-input" style="flex:1" onchange="calcTotals()">
+                        <option value="none">None</option>
+                        <option value="percent">% Percent</option>
+                        <option value="flat">₹ Flat</option>
+                    </select>
+                    <input type="number" id="discount-value" class="form-input" style="flex:1;display:none" min="0" placeholder="0" oninput="calcTotals()">
+                </div>
+            </div>
+
+            <div class="cart-payment">
+                <label class="form-label">Payment Method</label>
+                <div class="payment-tabs">
+                    <button class="payment-tab active" onclick="setPayment('cash', this)">💵 Cash</button>
+                    <button class="payment-tab" onclick="setPayment('card', this)">💳 Card (Razorpay)</button>
+                    <button class="payment-tab" onclick="setPayment('upi', this)">📱 UPI (Razorpay)</button>
+                </div>
+            </div>
+
+            <div class="cart-totals">
+                <div class="total-row"><span>Subtotal</span><span id="subtotal">₹0</span></div>
+                <div class="total-row discount-row" id="discount-row" style="display:none"><span>Discount</span><span id="discount-display" style="color:var(--rose)">-₹0</span></div>
+                <div class="total-row total-final"><span>Total</span><span id="grand-total">₹0</span></div>
+            </div>
+
+            <button class="btn btn-primary btn-checkout" id="checkout-btn" onclick="startPayment()" disabled>
+                🔒 Checkout & Pay
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Receipt Modal -->
+<div class="modal-overlay" id="receipt-modal" style="display:none" onclick="handleOverlayClick(event)">
+    <div class="modal" style="position:relative">
+
+        <!-- ✕ Close button -->
+        <button class="modal-close-btn" onclick="closeReceipt()" title="Close & New Sale">✕</button>
+
+        <div class="modal-icon">✅</div>
+        <h3 class="modal-title">Sale Complete!</h3>
+        <div id="receipt-order-id" class="modal-order-id"></div>
+        <div id="receipt-total" class="modal-total"></div>
+        <div id="receipt-payment" class="modal-sub"></div>
+        <div id="receipt-points" class="modal-points"></div>
+
+        <div style="display:flex;gap:10px;margin-top:20px">
+            <button class="btn btn-primary" style="flex:1" onclick="closeReceipt()">
+                🛒 New Sale
+            </button>
+            <a id="receipt-view-link" class="btn btn-cancel"
+               style="flex:1;text-align:center;display:flex;align-items:center;justify-content:center"
+               href="/orders">
+                📋 View Order
+            </a>
+        </div>
+
+        <div style="margin-top:12px;text-align:center">
+            <button onclick="window.history.back()" style="background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif">
+                ← Go back
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script>
+let cart = {};
+let paymentMethod = 'cash';
+
+function addToCart(el) {
+    const id = el.dataset.id;
+    const stock = parseInt(el.dataset.stock);
+    if (!cart[id]) {
+        cart[id] = { id, name: el.dataset.name, price: parseFloat(el.dataset.price), qty: 0, stock, unit: el.dataset.unit };
+    }
+    if (cart[id].qty >= stock) {
+        showToast(`Max stock: ${stock}`, 'error'); return;
+    }
+    cart[id].qty++;
+    renderCart();
+}
+
+function removeFromCart(id) { delete cart[id]; renderCart(); }
+
+function changeQty(id, delta) {
+    if (!cart[id]) return;
+    cart[id].qty += delta;
+    if (cart[id].qty <= 0) { delete cart[id]; }
+    else if (cart[id].qty > cart[id].stock) { cart[id].qty = cart[id].stock; showToast('Max stock reached', 'error'); }
+    renderCart();
+}
+
+function clearCart() { cart = {}; renderCart(); }
+
+function renderCart() {
+    const container = document.getElementById('cart-items');
+    const items     = Object.values(cart);
+
+    if (items.length === 0) {
+        container.innerHTML = `<div class="cart-empty" id="cart-empty" style="display:flex">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:40px;height:40px;color:var(--muted)"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/></svg>
+            <p>Cart is empty</p>
+        </div>`;
+        document.getElementById('checkout-btn').disabled = true;
+        calcTotals(); return;
+    }
+
+    let html = '';
+    items.forEach(item => {
+        html += `<div class="cart-item">
+            <div class="cart-item-name">${item.name}</div>
+            <div class="cart-item-controls">
+                <button class="qty-btn" onclick="changeQty('${item.id}', -1)">−</button>
+                <span class="qty-val">${item.qty}</span>
+                <button class="qty-btn" onclick="changeQty('${item.id}', 1)">+</button>
+                <span class="cart-item-price">${fmt(item.price * item.qty)}</span>
+                <button class="btn-icon-sm" onclick="removeFromCart('${item.id}')">✕</button>
+            </div>
+        </div>`;
+    });
+    container.innerHTML = html;
+    document.getElementById('checkout-btn').disabled = false;
+    calcTotals();
+}
+
+function calcTotals() {
+    const items  = Object.values(cart);
+    const sub    = items.reduce((s, i) => s + i.price * i.qty, 0);
+    const dtype  = document.getElementById('discount-type').value;
+    const dval   = parseFloat(document.getElementById('discount-value')?.value || 0);
+    const dInput = document.getElementById('discount-value');
+    const dRow   = document.getElementById('discount-row');
+
+    dInput.style.display = (dtype === 'none') ? 'none' : 'block';
+
+    let disc = 0;
+    if (dtype === 'percent') disc = sub * dval / 100;
+    else if (dtype === 'flat') disc = Math.min(dval, sub);
+
+    const grand = sub - disc;
+    document.getElementById('subtotal').textContent    = fmt(sub);
+    document.getElementById('grand-total').textContent = fmt(grand);
+    dRow.style.display = disc > 0 ? 'flex' : 'none';
+    document.getElementById('discount-display').textContent = `-${fmt(disc)}`;
+}
+
+function fmt(v) { return '₹' + parseFloat(v).toLocaleString('en-IN', {maximumFractionDigits:0}); }
+
+function setPayment(method, el) {
+    paymentMethod = method;
+    document.querySelectorAll('.payment-tab').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+}
+
+function filterProducts() {
+    const q = document.getElementById('pos-search').value.toLowerCase();
+    document.querySelectorAll('.product-card').forEach(card => {
+        const match = card.dataset.name.toLowerCase().includes(q) || card.dataset.sku.toLowerCase().includes(q);
+        card.style.display = match ? '' : 'none';
+    });
+}
+
+function filterByCategory(cat) {
+    document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+    event.target.classList.add('active');
+    document.querySelectorAll('.product-card').forEach(card => {
+        card.style.display = (!cat || card.dataset.category === cat) ? '' : 'none';
+    });
+}
+
+class Sample2 {
+    constructor() {
+        this.btn = null;
+    }
+
+    getCartData() {
+        const items = Object.values(cart);
+        const dtype = document.getElementById('discount-type').value;
+        const dval  = parseFloat(document.getElementById('discount-value')?.value || 0);
+        const sub   = items.reduce((s, i) => s + i.price * i.qty, 0);
+        let disc    = 0;
+        if (dtype === 'percent') disc = sub * dval / 100;
+        else if (dtype === 'flat') disc = Math.min(dval, sub);
+        const custId     = document.getElementById('customer-id').value;
+        const custSearch = document.getElementById('customer-search');
+        const custName   = custId
+            ? (custSearch ? custSearch.dataset.name || custSearch.value || '' : '')
+            : (custSearch ? custSearch.value : '');
+        return {
+            items,
+            dtype,
+            dval,
+            grand:    Math.round(sub - disc),
+            custId,
+            custName: custName || 'Walk-in Customer'
+        };
+    }
+
+    setBtn(text, disabled) {
+        if (!this.btn) this.btn = document.getElementById('checkout-btn');
+        this.btn.disabled    = disabled;
+        this.btn.textContent = text;
+    }
+
+    showReceipt(data) {
+        document.getElementById('receipt-order-id').textContent = data.order_id;
+        document.getElementById('receipt-total').textContent    = fmt(data.grand_total);
+        document.getElementById('receipt-payment').textContent  = `Paid via ${paymentMethod.toUpperCase()}`;
+        document.getElementById('receipt-view-link').href       = `/orders/view/${data.order_id}`;
+        const ptEl = document.getElementById('receipt-points');
+        if (ptEl) ptEl.textContent = data.custId && data.points_earned ? `+${data.points_earned} loyalty points earned!` : '';
+        document.getElementById('receipt-modal').style.display = 'flex';
+    }
+
+    _rzpMethodConfig(method) {
+        if (method === 'card') {
+            return {
+                config: {
+                    display: {
+                        blocks: {
+                            card_block: {
+                                name: 'Pay using Card',
+                                instruments: [
+                                    { method: 'card' }
+                                ]
+                            }
+                        },
+                        sequence: ['block.card_block'],
+                        preferences: { show_default_blocks: false }
+                    }
+                }
+            };
+        }
+        if (method === 'upi') {
+            return {
+                config: {
+                    display: {
+                        blocks: {
+                            upi_block: {
+                                name: 'Pay using UPI',
+                                instruments: [
+                                    { method: 'upi' }
+                                ]
+                            }
+                        },
+                        sequence: ['block.upi_block'],
+                        preferences: { show_default_blocks: false }
+                    }
+                }
+            };
+        }
+        return {};
+    }
+
+    async initiateRazorpay(grand, items, dtype, dval, custId, custName, method) {
+        const label = method === 'card' ? '💳 Card' : '📱 UPI';
+        this.setBtn(`Opening ${label} Payment...`, true);
+        try {
+            const res = await fetch('/razorpay/create-order', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify({
+                    amount:         grand,
+                    cart:           items.map(i => ({ product_id: i.id, qty: i.qty })),
+                    payment_method: method
+                })
+            });
+            let orderData;
+            try {
+                orderData = await res.json();
+            } catch(jsonErr) {
+                console.error('Server response (non-JSON):', res.status, await res.text().catch(() => ''));
+                showToast(`Server error ${res.status} — check Flask console`, 'error');
+                this.setBtn('🔒 Checkout & Pay', false);
+                return;
+            }
+            if (!orderData.success) {
+                showToast(orderData.message || 'Could not create payment order', 'error');
+                this.setBtn('🔒 Checkout & Pay', false);
+                return;
+            }
+            const cartPayload = {
+                cart:           items.map(i => ({ product_id: i.id, qty: i.qty })),
+                discount_type:  dtype,
+                discount_value: dval,
+                customer_name:  custName,
+                customer_id:    custId,
+                payment_method: method
+            };
+            const rzpOptions = {
+                key:         orderData.key_id,
+                amount:      orderData.amount,
+                currency:    'INR',
+                name:        'MallOS',
+                description: `${label} Payment — ${items.length} item(s)`,
+                order_id:    orderData.razorpay_order_id,
+                theme:       { color: '#2dd4bf' },
+                handler:     async (response) => {
+                    this.setBtn('Verifying...', true);
+                    try {
+                        const vRes = await fetch('/razorpay/verify-payment', {
+                            method:  'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body:    JSON.stringify({
+                                razorpay_order_id:   response.razorpay_order_id,
+                                razorpay_payment_id: response.razorpay_payment_id,
+                                razorpay_signature:  response.razorpay_signature,
+                                cart_data:           cartPayload
+                            })
+                        });
+                        const vData = await vRes.json();
+                        if (vData.success) {
+                            clearCart();
+                            showToast(`✅ ${vData.message}`, 'success');
+                            setTimeout(() => { window.location.href = vData.receipt_url; }, 1200);
+                        } else {
+                            showToast(vData.message || 'Verification failed', 'error');
+                        }
+                    } catch(e) {
+                        showToast('Verification error — check console', 'error');
+                    }
+                    this.setBtn('🔒 Checkout & Pay', false);
+                },
+                modal: {
+                    ondismiss: () => {
+                        this.setBtn('🔒 Checkout & Pay', false);
+                        showToast('Payment cancelled', 'info');
+                    }
+                },
+                ...this._rzpMethodConfig(method)
+            };
+            const rzp = new Razorpay(rzpOptions);
+            rzp.on('payment.failed', (resp) => {
+                showToast(`Payment failed: ${resp.error.description}`, 'error');
+                this.setBtn('🔒 Checkout & Pay', false);
+            });
+            rzp.open();
+        } catch(e) {
+            console.error('Razorpay error:', e);
+            showToast('Could not open payment — check console', 'error');
+            this.setBtn('🔒 Checkout & Pay', false);
+        }
+    }
+
+    async initiateCash(items, dtype, dval, custId, custName) {
+        this.setBtn('Processing...', true);
+        try {
+            const res  = await fetch('/pos/checkout', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify({
+                    cart:           items.map(i => ({ product_id: i.id, qty: i.qty })),
+                    payment_method: 'cash',
+                    discount_type:  dtype,
+                    discount_value: dval,
+                    customer_name:  custName,
+                    customer_id:    custId
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                this.showReceipt({ ...data, custId });
+            } else {
+                showToast(data.message || 'Checkout failed', 'error');
+            }
+        } catch(e) {
+            showToast('Network error', 'error');
+        }
+        this.setBtn('Charge & Complete Sale', false);
+    }
+
+    async run() {
+        const { items, dtype, dval, grand, custId, custName } = this.getCartData();
+        if (!items.length) return;
+        if (paymentMethod === 'card' || paymentMethod === 'upi') {
+            await this.initiateRazorpay(grand, items, dtype, dval, custId, custName, paymentMethod);
+        } else {
+            await this.initiateCash(items, dtype, dval, custId, custName);
+        }
+    }
+}
+
+const _paymentHandler = new Sample2();
+
+async function startPayment() {
+    await _paymentHandler.run();
+}
+
+async function checkout() {
+    const d = _paymentHandler.getCartData();
+    await _paymentHandler.initiateCash(d.items, d.dtype, d.dval, d.custId, d.custName);
+}
+
+function closeReceipt() {
+    cart = {};
+    clearCustomer();
+    document.getElementById('discount-type').value = 'none';
+    if (document.getElementById('discount-value')) document.getElementById('discount-value').value = '';
+    renderCart();
+    document.getElementById('receipt-modal').style.display = 'none';
+}
+
+// Click outside modal to dismiss
+function handleOverlayClick(e) {
+    if (e.target.id === 'receipt-modal') closeReceipt();
+}
+
+// Customer search
+let customerSearchTimer;
+async function searchCustomer() {
+    const q = document.getElementById('customer-search').value.trim();
+    const dd = document.getElementById('customer-dropdown');
+    clearTimeout(customerSearchTimer);
+    if (q.length < 2) { dd.style.display = 'none'; return; }
+    customerSearchTimer = setTimeout(async () => {
+        const res  = await fetch(`/customers/search_ajax?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+        if (!data.length) { dd.style.display = 'none'; return; }
+        dd.innerHTML = data.map(c => `
+            <div class="customer-option" onclick="selectCustomer('${c._id}','${c.name}','${c.phone}','${c.points}','${c.tier}')">
+                <span class="customer-option-name">${c.name}</span>
+                <span class="customer-option-sub">${c.phone} · <span style="color:${tierColor(c.tier)}">${c.tier}</span> · ${c.points} pts</span>
+            </div>`).join('');
+        dd.style.display = 'block';
+    }, 300);
+}
+
+function tierColor(tier) {
+    return {Platinum:'#a78bfa',Gold:'#fbbf24',Silver:'#94a3b8',Bronze:'#f97316'}[tier] || '#6b7a99';
+}
+
+function selectCustomer(id, name, phone, points, tier) {
+    document.getElementById('customer-id').value = id;
+    document.getElementById('customer-search').value = name;
+    document.getElementById('customer-search').dataset.name = name;
+    document.getElementById('customer-dropdown').style.display = 'none';
+    document.getElementById('customer-selected').style.display = 'flex';
+    document.getElementById('customer-info').innerHTML =
+        `<strong>${name}</strong> · ${phone} · <span style="color:${tierColor(tier)}">${tier}</span> · <span style="color:var(--teal)">${points} pts</span>`;
+    document.getElementById('customer-search').style.display = 'none';
+}
+
+function clearCustomer() {
+    document.getElementById('customer-id').value = '';
+    document.getElementById('customer-search').value = '';
+    document.getElementById('customer-search').style.display = 'block';
+    document.getElementById('customer-selected').style.display = 'none';
+    document.getElementById('customer-dropdown').style.display = 'none';
+}
+
+document.addEventListener('click', e => {
+    if (!e.target.closest('.cart-customer')) document.getElementById('customer-dropdown').style.display = 'none';
+});
+
+function showToast(msg, type) {
+    const t = document.createElement('div');
+    t.className = `flash flash-${type === 'error' ? 'error' : 'success'}`;
+    t.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;min-width:200px';
+    t.innerHTML = `<span>${msg}</span><button onclick="this.parentElement.remove()">✕</button>`;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 3000);
+}
+
+// Init
+document.getElementById('discount-type').addEventListener('change', calcTotals);
+renderCart();
+</script>
+{% endblock %}

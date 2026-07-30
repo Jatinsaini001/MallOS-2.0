@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}{{ customer.name }} — MallOS{% endblock %}
+{% block page_label %}Customers{% endblock %}
+{% block page_heading %}Customer Profile{% endblock %}
+{% block content %}
+
+{% set tc = get_tier_color(customer.tier) %}
+{% set ti = next_tier_info(customer.points or 0) %}
+
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+    <a href="{{ url_for('customers') }}" class="card-link" style="font-size:14px">← Back to Customers</a>
+</div>
+
+<div class="two-col" style="margin-bottom:20px">
+    <!-- Profile Card -->
+    <div class="card">
+        <div style="padding:24px;text-align:center;border-bottom:1px solid var(--border)">
+            <div class="customer-avatar" style="background:{{ tc }}22;color:{{ tc }}">{{ customer.name[0].upper() }}</div>
+            <h2 style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;margin-top:12px">{{ customer.name }}</h2>
+            <span class="tier-badge" style="color:{{ tc }};background:{{ tc }}22;border:1px solid {{ tc }}44;font-size:13px;padding:4px 14px;margin-top:8px;display:inline-block">⭐ {{ customer.tier }}</span>
+        </div>
+        <div style="padding:20px;display:flex;flex-direction:column;gap:12px">
+            <div class="detail-row"><span class="form-label">Phone</span><span>{{ customer.phone }}</span></div>
+            <div class="detail-row"><span class="form-label">Email</span><span>{{ customer.email or '—' }}</span></div>
+            <div class="detail-row"><span class="form-label">Address</span><span>{{ customer.address or '—' }}</span></div>
+            <div class="detail-row"><span class="form-label">Registered</span><span class="muted">{{ customer.created_at.strftime('%d %b %Y') if customer.created_at else '—' }}</span></div>
+            <div class="detail-row"><span class="form-label">Last Visit</span><span class="muted">{{ customer.last_visit.strftime('%d %b %Y') if customer.get('last_visit') else '—' }}</span></div>
+        </div>
+    </div>
+
+    <!-- Loyalty Card -->
+    <div class="card">
+        <div class="card-header"><h2 class="card-title">Loyalty Status</h2></div>
+        <div style="padding:20px">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+                <div style="background:var(--surface2);border-radius:8px;padding:16px;text-align:center">
+                    <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:var(--teal)">{{ customer.points or 0 }}</div>
+                    <div class="form-label" style="margin-top:4px">Total Points</div>
+                </div>
+                <div style="background:var(--surface2);border-radius:8px;padding:16px;text-align:center">
+                    <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--green)">{{ (customer.total_spent or 0) | currency }}</div>
+                    <div class="form-label" style="margin-top:4px">Total Spent</div>
+                </div>
+                <div style="background:var(--surface2);border-radius:8px;padding:16px;text-align:center">
+                    <div style="font-family:'Syne',sans-serif;font-size:24px;font-weight:800;color:var(--amber)">{{ customer.visit_count or 0 }}</div>
+                    <div class="form-label" style="margin-top:4px">Visits</div>
+                </div>
+                <div style="background:var(--surface2);border-radius:8px;padding:16px;text-align:center">
+                    <div style="font-family:'Syne',sans-serif;font-size:24px;font-weight:800;color:{{ tc }}">{{ customer.tier }}</div>
+                    <div class="form-label" style="margin-top:4px">Current Tier</div>
+                </div>
+            </div>
+
+            {% if ti.next %}
+            <div style="margin-bottom:16px">
+                <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:6px">
+                    <span>Progress to {{ ti.next }}</span>
+                    <span>{{ ti.needed }} pts needed</span>
+                </div>
+                <div style="background:var(--surface2);border-radius:4px;height:8px;overflow:hidden">
+                    <div style="height:100%;width:{{ ti.progress }}%;background:{{ tc }};border-radius:4px;transition:width .5s ease"></div>
+                </div>
+            </div>
+            {% else %}
+            <div style="text-align:center;padding:10px;background:{{ tc }}22;border-radius:8px;color:{{ tc }};font-weight:600;font-size:13px">
+                🏆 Highest Tier Achieved!
+            </div>
+            {% endif %}
+
+            <!-- Adjust Points -->
+            <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+                <div class="form-label" style="margin-bottom:8px">Manual Point Adjustment</div>
+                <form method="POST" action="{{ url_for('adjust_points', id=customer._id) }}" style="display:flex;gap:8px">
+                    <input type="number" name="amount" class="form-input" placeholder="Points" min="1" style="flex:1" required>
+                    <button type="submit" name="action" value="add" class="btn btn-primary" style="flex:1;white-space:nowrap">+ Add</button>
+                    <button type="submit" name="action" value="deduct" class="btn" style="flex:1;background:var(--rose);color:#fff;white-space:nowrap">− Deduct</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Order History -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Order History <span class="count-pill">{{ orders|length }}</span></h2>
+    </div>
+    {% if orders %}
+    <div class="table-wrap">
+        <table class="table">
+            <thead><tr><th>Order ID</th><th>Items</th><th>Total</th><th>Points Earned</th><th>Payment</th><th>Status</th><th>Date</th></tr></thead>
+            <tbody>
+            {% for o in orders %}
+            <tr>
+                <td><a href="{{ url_for('order_detail', id=o._id) }}" style="color:var(--teal);font-weight:600">{{ o.order_id }}</a></td>
+                <td class="muted">{{ o['items']|length }} item(s)</td>
+                <td class="amount">{{ o.grand_total | currency }}</td>
+                <td style="color:var(--teal)">+{{ o.points_earned or 0 }} pts</td>
+                <td><span class="chip chip-blue">{{ o.payment_method|upper }}</span></td>
+                <td><span class="status-chip status-{{ o.status }}">{{ o.status }}</span></td>
+                <td class="muted" style="font-size:12px">{{ o.created_at.strftime('%d %b %Y') if o.created_at else '—' }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">No purchase history yet.</div>
+    {% endif %}
+</div>
+{% endblock %}

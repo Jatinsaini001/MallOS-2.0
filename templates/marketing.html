@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}Marketing — MallOS{% endblock %}
+{% block page_label %}Growth{% endblock %}
+{% block page_heading %}Marketing{% endblock %}
+{% block content %}
+
+<div class="stats-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px">
+    <div class="stat-card accent-purple">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+        <div class="stat-data"><div class="stat-value">{{ active_camp }}</div><div class="stat-label">Active Campaigns</div></div>
+    </div>
+    <div class="stat-card accent-teal">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></div>
+        <div class="stat-data"><div class="stat-value">{{ active_coup }}</div><div class="stat-label">Active Coupons</div></div>
+    </div>
+    <div class="stat-card accent-amber">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div>
+        <div class="stat-data"><div class="stat-value">{{ budget_total | currency }}</div><div class="stat-label">Total Budget</div></div>
+    </div>
+</div>
+
+<div class="two-col" style="margin-bottom:20px">
+    <!-- Add Campaign -->
+    <div class="card">
+        <div class="card-header"><h2 class="card-title">New Campaign</h2></div>
+        <form method="POST" class="form-grid">
+            <input type="hidden" name="action" value="add_campaign">
+            <div class="form-group form-full"><label class="form-label">Campaign Name *</label><input type="text" name="name" class="form-input" required placeholder="e.g. Diwali Sale 2024"></div>
+            <div class="form-group"><label class="form-label">Type</label>
+                <select name="type" class="form-input">
+                    <option>Sale</option><option>BOGO</option><option>Awareness</option>
+                    <option>Loyalty</option><option>Seasonal</option><option>Launch</option>
+                </select>
+            </div>
+            <div class="form-group"><label class="form-label">Channel</label>
+                <select name="channel" class="form-input">
+                    <option>SMS</option><option>Email</option><option>Social Media</option>
+                    <option>Banners</option><option>WhatsApp</option><option>All Channels</option>
+                </select>
+            </div>
+            <div class="form-group"><label class="form-label">Budget (₹)</label><input type="number" name="budget" class="form-input" min="0" placeholder="10000"></div>
+            <div class="form-group"><label class="form-label">Target Audience</label><input type="text" name="target" class="form-input" placeholder="e.g. Gold+ Customers"></div>
+            <div class="form-group"><label class="form-label">Start Date</label><input type="date" name="start_date" class="form-input"></div>
+            <div class="form-group"><label class="form-label">End Date</label><input type="date" name="end_date" class="form-input"></div>
+            <div class="form-group form-full"><label class="form-label">Description</label><input type="text" name="description" class="form-input" placeholder="Campaign details..."></div>
+            <div class="form-group form-full"><button type="submit" class="btn btn-primary">+ Launch Campaign</button></div>
+        </form>
+    </div>
+
+    <!-- Add Coupon -->
+    <div class="card">
+        <div class="card-header"><h2 class="card-title">Create Coupon / Offer</h2></div>
+        <form method="POST" class="form-grid">
+            <input type="hidden" name="action" value="add_coupon">
+            <div class="form-group"><label class="form-label">Coupon Code *</label><input type="text" name="code" class="form-input" required placeholder="DIWALI20" style="text-transform:uppercase"></div>
+            <div class="form-group"><label class="form-label">Type *</label>
+                <select name="coupon_type" class="form-input" onchange="toggleCouponVal(this)">
+                    <option value="percent">% Discount</option>
+                    <option value="flat">₹ Flat Off</option>
+                    <option value="bogo">BOGO (Buy 1 Get 1)</option>
+                </select>
+            </div>
+            <div class="form-group" id="coupon-val-group"><label class="form-label">Value</label><input type="number" name="coupon_value" id="coupon-val" class="form-input" min="0" placeholder="20"></div>
+            <div class="form-group"><label class="form-label">Min Purchase (₹)</label><input type="number" name="min_purchase" class="form-input" min="0" placeholder="500"></div>
+            <div class="form-group"><label class="form-label">Max Uses</label><input type="number" name="max_uses" class="form-input" min="0" placeholder="0 = unlimited"></div>
+            <div class="form-group"><label class="form-label">Valid Until</label><input type="date" name="valid_until" class="form-input"></div>
+            <div class="form-group form-full"><label class="form-label">Description</label><input type="text" name="coupon_desc" class="form-input" placeholder="e.g. 20% off on all Fashion items"></div>
+            <div class="form-group form-full"><button type="submit" class="btn btn-primary">+ Create Coupon</button></div>
+        </form>
+    </div>
+</div>
+
+<!-- Campaigns List -->
+<div class="card" style="margin-bottom:20px">
+    <div class="card-header"><h2 class="card-title">Campaigns <span class="count-pill">{{ campaigns|length }}</span></h2></div>
+    {% if campaigns %}
+    <div class="table-wrap">
+        <table class="table">
+            <thead><tr><th>#</th><th>Campaign</th><th>Type</th><th>Channel</th><th>Target</th><th>Budget</th><th>Dates</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>
+            {% for c in campaigns %}
+            <tr>
+                <td class="muted">{{ loop.index }}</td>
+                <td><strong>{{ c.name }}</strong><div class="muted" style="font-size:11px">{{ c.description[:40] if c.description else '' }}</div></td>
+                <td><span class="chip chip-blue">{{ c.type }}</span></td>
+                <td class="muted">{{ c.channel }}</td>
+                <td class="muted">{{ c.target or '—' }}</td>
+                <td class="amount">{{ c.budget | currency }}</td>
+                <td class="muted" style="font-size:11px">{{ c.start_date or '—' }}<br>{{ c.end_date or '' }}</td>
+                <td>
+                    <form method="POST" action="{{ url_for('update_campaign_status', id=c._id) }}">
+                        <select name="status" class="form-input" style="padding:4px 6px;font-size:11px;width:auto" onchange="this.form.submit()">
+                            <option value="active" {% if c.status=='active' %}selected{% endif %}>Active</option>
+                            <option value="paused" {% if c.status=='paused' %}selected{% endif %}>Paused</option>
+                            <option value="completed" {% if c.status=='completed' %}selected{% endif %}>Completed</option>
+                        </select>
+                    </form>
+                </td>
+                <td><a href="{{ url_for('delete_campaign', id=c._id) }}" class="btn-delete" onclick="return confirm('Delete?')">Del</a></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}<div class="empty-state">No campaigns yet.</div>{% endif %}
+</div>
+
+<!-- Coupons List -->
+<div class="card">
+    <div class="card-header"><h2 class="card-title">Coupons & Offers <span class="count-pill">{{ coupons|length }}</span></h2></div>
+    {% if coupons %}
+    <div class="table-wrap">
+        <table class="table">
+            <thead><tr><th>Code</th><th>Type</th><th>Value</th><th>Min Purchase</th><th>Uses</th><th>Valid Until</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>
+            {% for c in coupons %}
+            <tr>
+                <td><span style="font-family:'Syne',sans-serif;font-weight:700;color:var(--teal);letter-spacing:1px">{{ c.code }}</span></td>
+                <td><span class="chip {% if c.type=='bogo' %}chip-amber{% else %}chip-blue{% endif %}">{{ c.type|upper }}</span></td>
+                <td class="amount">{% if c.type == 'percent' %}{{ c.value }}%{% elif c.type == 'flat' %}{{ c.value | currency }}{% else %}BOGO{% endif %}</td>
+                <td class="muted">{{ c.min_purchase | currency if c.min_purchase else '—' }}</td>
+                <td class="muted">{{ c.used_count or 0 }}{% if c.max_uses %}/{{ c.max_uses }}{% endif %}</td>
+                <td class="muted" style="font-size:12px">{{ c.valid_until or '—' }}</td>
+                <td><span class="status-chip {% if c.active %}status-completed{% else %}status-returned{% endif %}">{% if c.active %}Active{% else %}Disabled{% endif %}</span></td>
+                <td style="display:flex;gap:6px">
+                    <a href="{{ url_for('toggle_coupon', id=c._id) }}" class="btn-edit">{% if c.active %}Disable{% else %}Enable{% endif %}</a>
+                    <a href="{{ url_for('delete_coupon', id=c._id) }}" class="btn-delete" onclick="return confirm('Delete?')">Del</a>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}<div class="empty-state">No coupons created yet.</div>{% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function toggleCouponVal(sel) {
+    const grp = document.getElementById('coupon-val-group');
+    grp.style.display = sel.value === 'bogo' ? 'none' : '';
+}
+</script>
+{% endblock %}

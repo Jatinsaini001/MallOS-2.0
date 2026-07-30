@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+{% block title %}Payment — MallOS{% endblock %}
+{% block page_label %}Retail{% endblock %}
+{% block page_heading %}Payment{% endblock %}
+
+{% block content %}
+<div class="payment-wrapper">
+
+    <!-- Left: QR + Status -->
+    <div class="payment-main">
+
+        <div class="payment-card" id="payment-card">
+            <!-- Status Badge -->
+            <div class="pay-status-row">
+                <span class="pay-id">Order #{{ payment_id }}</span>
+                <span class="pay-status-badge" id="status-badge" data-status="{{ status }}">
+                    {% if status == 'paid' %}✅ Paid
+                    {% elif status == 'expired' %}❌ Expired
+                    {% else %}⏳ Pending{% endif %}
+                </span>
+            </div>
+
+            <!-- Amount -->
+            <div class="pay-amount">₹{{ '{:,.0f}'.format(amount) }}</div>
+            <div class="pay-label">Scan QR to pay via UPI</div>
+
+            <!-- QR Code -->
+            <div class="qr-wrap" id="qr-wrap">
+                {% if status == 'paid' %}
+                <div class="qr-overlay qr-paid">✅<br>Payment Received</div>
+                {% elif status == 'expired' %}
+                <div class="qr-overlay qr-expired">❌<br>Expired</div>
+                {% endif %}
+                <img src="{{ url_for('static', filename=qr_url) }}"
+                     alt="QR Code" class="qr-img" id="qr-img"
+                     onerror="this.style.display='none';document.getElementById('qr-svg-fallback').style.display='flex'">
+                <!-- SVG fallback if PNG fails -->
+                <div id="qr-svg-fallback" style="display:none;width:200px;height:200px;background:var(--surface2);border-radius:8px;align-items:center;justify-content:center;color:var(--muted);font-size:12px;text-align:center;padding:20px">
+                    QR unavailable<br><small>Install qrcode library</small>
+                </div>
+            </div>
+
+            <!-- Countdown Timer -->
+            <div class="pay-timer" id="timer-wrap" {% if status != 'pending' %}style="display:none"{% endif %}>
+                <div class="timer-ring-wrap">
+                    <svg class="timer-ring" viewBox="0 0 80 80">
+                        <circle cx="40" cy="40" r="34" fill="none" stroke="var(--border)" stroke-width="5"/>
+                        <circle cx="40" cy="40" r="34" fill="none" stroke="var(--teal)" stroke-width="5"
+                                stroke-dasharray="213.6" stroke-dashoffset="0"
+                                stroke-linecap="round" id="timer-circle"
+                                transform="rotate(-90 40 40)"/>
+                    </svg>
+                    <div class="timer-text" id="timer-text">{{ remaining }}s</div>
+                </div>
+                <div style="font-size:12px;color:var(--muted)">Payment expires in</div>
+            </div>
+
+            <!-- Actions -->
+            <div class="pay-actions" id="pay-actions">
+                {% if status == 'pending' %}
+                <button class="btn btn-primary pay-btn" id="mark-paid-btn" onclick="markPaid()">
+                    ✅ Mark as Paid
+                </button>
+                {% elif status == 'paid' %}
+                <div class="pay-success-msg">🎉 Payment received successfully!</div>
+                <a href="{{ url_for('pos') }}" class="btn btn-primary pay-btn" style="text-align:center;text-decoration:none">
+                    New Sale →
+                </a>
+                {% elif status == 'expired' %}
+                <div class="pay-expired-msg">⏱ Payment window expired.</div>
+                <a href="{{ url_for('pos') }}" class="btn btn-primary pay-btn" style="background:var(--amber);color:#0d0f14;text-align:center;text-decoration:none">
+                    🔄 Retry Payment
+                </a>
+                {% endif %}
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Right: Order Summary -->
+    <div class="payment-summary">
+        <div class="card">
+            <div class="card-header"><h2 class="card-title">Payment Details</h2></div>
+            <div style="padding:20px;display:flex;flex-direction:column;gap:12px">
+                <div class="detail-row"><span class="form-label">Payment ID</span><span style="font-family:'Syne',sans-serif;font-weight:700;font-size:13px">{{ payment_id }}</span></div>
+                <div class="detail-row"><span class="form-label">Amount</span><span class="amount">₹{{ '{:,.0f}'.format(amount) }}</span></div>
+                <div class="detail-row"><span class="form-label">Method</span><span><span class="chip chip-blue">UPI</span></span></div>
+                <div class="detail-row"><span class="form-label">Status</span>
+                    <span class="status-chip" id="summary-status"
+                          style="background:{% if status=='paid' %}rgba(74,222,128,.15){% elif status=='expired' %}rgba(251,113,133,.15){% else %}rgba(251,191,36,.15){% endif %};
+                                 color:{% if status=='paid' %}var(--green){% elif status=='expired' %}var(--rose){% else %}var(--amber){% endif %}">
+                        {{ status|title }}
+                    </span>
+                </div>
+                <div class="detail-row"><span class="form-label">Expires in</span><span id="summary-timer" class="muted">{{ remaining }}s</span></div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+            <div class="card-header"><h2 class="card-title">Instructions</h2></div>
+            <div style="padding:20px;font-size:13px;color:var(--muted);line-height:1.8">
+                <div>1. Open your UPI app (GPay, PhonePe, Paytm)</div>
+                <div>2. Scan the QR code</div>
+                <div>3. Enter ₹{{ '{:,.0f}'.format(amount) }} and pay</div>
+                <div>4. Click <strong style="color:var(--text)">Mark as Paid</strong> to confirm</div>
+                <div style="margin-top:12px;padding:10px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);border-radius:6px;color:var(--amber)">
+                    ⚠ Payment will expire in {{ remaining }} seconds
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const PAYMENT_ID  = "{{ payment_id }}";
+const EXPIRY_SECS = {{ remaining }};
+const FULL_DASH   = 213.6;
+let   initialStatus = "{{ status }}";
+let   secondsLeft   = EXPIRY_SECS;
+let   timerInterval = null;
+let   statusInterval = null;
+
+// ── Timer ────────────────────────────────────────────────────────────────────
+function startTimer() {
+    if (initialStatus !== 'pending' || secondsLeft <= 0) return;
+    const circle   = document.getElementById('timer-circle');
+    const timerTxt = document.getElementById('timer-text');
+    const summaryT = document.getElementById('summary-timer');
+
+    timerInterval = setInterval(() => {
+        secondsLeft--;
+        if (timerTxt) timerTxt.textContent = secondsLeft + 's';
+        if (summaryT) summaryT.textContent = secondsLeft + 's';
+
+        // Update ring
+        const offset = FULL_DASH - (FULL_DASH * secondsLeft / EXPIRY_SECS);
+        if (circle) {
+            circle.style.strokeDashoffset = offset;
+            // Turn red when < 30s
+            if (secondsLeft < 30) circle.style.stroke = 'var(--rose)';
+            else if (secondsLeft < 60) circle.style.stroke = 'var(--amber)';
+        }
+
+        if (secondsLeft <= 0) {
+            clearInterval(timerInterval);
+            clearInterval(statusInterval);
+            handleExpiry();
+        }
+    }, 1000);
+}
+
+function handleExpiry() {
+    document.getElementById('timer-wrap').style.display = 'none';
+
+    // Update badge
+    const badge = document.getElementById('status-badge');
+    if (badge) { badge.textContent = '❌ Expired'; badge.dataset.status = 'expired'; }
+
+    // Update summary status
+    const ss = document.getElementById('summary-status');
+    if (ss) { ss.textContent = 'Expired'; ss.style.color = 'var(--rose)'; ss.style.background = 'rgba(251,113,133,.15)'; }
+
+    // Update actions
+    document.getElementById('pay-actions').innerHTML = `
+        <div class="pay-expired-msg">⏱ Payment window expired.</div>
+        <a href="/pos" class="btn btn-primary pay-btn" style="background:var(--amber);color:#0d0f14;text-align:center;text-decoration:none">
+            🔄 Retry Payment
+        </a>`;
+
+    // QR overlay
+    const qr = document.getElementById('qr-wrap');
+    if (qr && !qr.querySelector('.qr-overlay')) {
+        const ov = document.createElement('div');
+        ov.className = 'qr-overlay qr-expired';
+        ov.innerHTML = '❌<br>Expired';
+        qr.insertBefore(ov, qr.firstChild);
+    }
+
+    if (document.getElementById('summary-timer'))
+        document.getElementById('summary-timer').textContent = '0s';
+}
+
+// ── Poll payment status ──────────────────────────────────────────────────────
+function startStatusPolling() {
+    if (initialStatus !== 'pending') return;
+    statusInterval = setInterval(async () => {
+        try {
+            const res  = await fetch(`/payment/${PAYMENT_ID}/status`);
+            const data = await res.json();
+            if (data.status === 'paid') {
+                clearInterval(timerInterval);
+                clearInterval(statusInterval);
+                handlePaid();
+            } else if (data.status === 'expired') {
+                clearInterval(timerInterval);
+                clearInterval(statusInterval);
+                handleExpiry();
+            }
+        } catch(e) {}
+    }, 3000);
+}
+
+function handlePaid() {
+    const badge = document.getElementById('status-badge');
+    if (badge) { badge.textContent = '✅ Paid'; badge.dataset.status = 'paid'; }
+
+    const ss = document.getElementById('summary-status');
+    if (ss) { ss.textContent = 'Paid'; ss.style.color = 'var(--green)'; ss.style.background = 'rgba(74,222,128,.15)'; }
+
+    document.getElementById('timer-wrap').style.display = 'none';
+
+    document.getElementById('pay-actions').innerHTML = `
+        <div class="pay-success-msg">🎉 Payment received successfully!</div>
+        <a href="/pos" class="btn btn-primary pay-btn" style="text-align:center;text-decoration:none">
+            New Sale →
+        </a>`;
+
+    const qr = document.getElementById('qr-wrap');
+    if (qr && !qr.querySelector('.qr-overlay')) {
+        const ov = document.createElement('div');
+        ov.className = 'qr-overlay qr-paid';
+        ov.innerHTML = '✅<br>Payment Received';
+        qr.insertBefore(ov, qr.firstChild);
+    }
+
+    if (document.getElementById('summary-timer'))
+        document.getElementById('summary-timer').textContent = '—';
+}
+
+// ── Mark as Paid button ──────────────────────────────────────────────────────
+async function markPaid() {
+    const btn = document.getElementById('mark-paid-btn');
+    if (!btn) return;
+    btn.disabled = true;
+    btn.textContent = 'Confirming...';
+
+    try {
+        const res  = await fetch(`/payment/${PAYMENT_ID}/mark-paid`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+            clearInterval(timerInterval);
+            clearInterval(statusInterval);
+            handlePaid();
+        } else {
+            if (data.status === 'expired') {
+                clearInterval(timerInterval);
+                clearInterval(statusInterval);
+                handleExpiry();
+            } else {
+                btn.disabled = false;
+                btn.textContent = '✅ Mark as Paid';
+                showToast(data.message, 'error');
+            }
+        }
+    } catch(e) {
+        btn.disabled = false;
+        btn.textContent = '✅ Mark as Paid';
+        showToast('Network error', 'error');
+    }
+}
+
+function showToast(msg, type) {
+    const t = document.createElement('div');
+    t.className = `flash flash-${type === 'error' ? 'error' : 'success'}`;
+    t.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;min-width:220px';
+    t.innerHTML = `<span>${msg}</span><button onclick="this.parentElement.remove()">✕</button>`;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 4000);
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+if (initialStatus === 'pending') {
+    startTimer();
+    startStatusPolling();
+} else if (initialStatus === 'expired') {
+    document.getElementById('timer-wrap').style.display = 'none';
+}
+</script>
+{% endblock %}

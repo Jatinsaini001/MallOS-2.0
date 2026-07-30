@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}{{ supplier.name }} — MallOS{% endblock %}
+{% block page_label %}Suppliers{% endblock %}
+{% block page_heading %}Supplier Profile{% endblock %}
+{% block content %}
+
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+    <a href="{{ url_for('suppliers') }}" class="card-link" style="font-size:14px">← Back to Suppliers</a>
+    <a href="{{ url_for('edit_supplier', id=supplier._id) }}" class="btn-edit" style="padding:8px 16px;font-size:13px">Edit Supplier</a>
+</div>
+
+<div class="two-col" style="margin-bottom:20px">
+    <!-- Info -->
+    <div class="card">
+        <div style="padding:24px;border-bottom:1px solid var(--border)">
+            <div style="display:flex;align-items:center;gap:14px">
+                <div class="customer-avatar" style="background:rgba(96,165,250,.15);color:var(--blue);font-size:22px">{{ supplier.name[0].upper() }}</div>
+                <div>
+                    <h2 style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700">{{ supplier.name }}</h2>
+                    <div style="color:var(--muted);font-size:13px;margin-top:2px">{{ supplier.category or 'Uncategorized' }}</div>
+                </div>
+            </div>
+        </div>
+        <div style="padding:20px;display:flex;flex-direction:column;gap:12px">
+            <div class="detail-row"><span class="form-label">Contact</span><span>{{ supplier.contact or '—' }}</span></div>
+            <div class="detail-row"><span class="form-label">Email</span><span>{{ supplier.email or '—' }}</span></div>
+            <div class="detail-row"><span class="form-label">Address</span><span>{{ supplier.address or '—' }}</span></div>
+            <div class="detail-row"><span class="form-label">Notes</span><span class="muted">{{ supplier.notes or '—' }}</span></div>
+            <div class="detail-row"><span class="form-label">Since</span><span class="muted">{{ supplier.created_at.strftime('%d %b %Y') if supplier.created_at else '—' }}</span></div>
+        </div>
+    </div>
+
+    <!-- Financials & Rating -->
+    <div class="card">
+        <div class="card-header"><h2 class="card-title">Financials & Rating</h2></div>
+        <div style="padding:20px">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+                <div style="background:var(--surface2);border-radius:8px;padding:16px;text-align:center">
+                    <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:{% if supplier.outstanding > 0 %}var(--rose){% else %}var(--green){% endif %}">{{ supplier.outstanding | currency }}</div>
+                    <div class="form-label" style="margin-top:4px">Outstanding</div>
+                </div>
+                <div style="background:var(--surface2);border-radius:8px;padding:16px;text-align:center">
+                    <div style="font-size:22px">{% for i in range(5) %}<span style="color:{% if i < supplier.rating|int %}var(--amber){% else %}var(--border){% endif %}">★</span>{% endfor %}</div>
+                    <div class="form-label" style="margin-top:4px">Rating {{ supplier.rating }}/5</div>
+                </div>
+            </div>
+
+            {% if supplier.outstanding > 0 %}
+            <div style="padding-top:16px;border-top:1px solid var(--border)">
+                <div class="form-label" style="margin-bottom:8px">Record Payment</div>
+                <form method="POST" action="{{ url_for('pay_supplier', id=supplier._id) }}" style="display:flex;gap:8px">
+                    <input type="number" name="amount" class="form-input" placeholder="Amount (₹)" min="1" max="{{ supplier.outstanding }}" style="flex:1" required>
+                    <button type="submit" class="btn btn-primary" style="white-space:nowrap">Pay Now</button>
+                </form>
+            </div>
+            {% else %}
+            <div style="text-align:center;padding:12px;background:rgba(74,222,128,.1);border-radius:8px;color:var(--green);font-weight:600;font-size:13px">
+                ✅ No outstanding balance
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Linked Products -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Linked Products <span class="count-pill">{{ products|length }}</span></h2>
+        <a href="{{ url_for('inventory') }}" class="card-link" style="font-size:12px">Manage Inventory →</a>
+    </div>
+    {% if products %}
+    <div class="table-wrap">
+        <table class="table">
+            <thead><tr><th>Product</th><th>SKU</th><th>Category</th><th>Price</th><th>Stock</th></tr></thead>
+            <tbody>
+            {% for p in products %}
+            <tr>
+                <td><strong>{{ p.name }}</strong></td>
+                <td class="muted">{{ p.sku or '—' }}</td>
+                <td>{{ p.category or '—' }}</td>
+                <td class="amount">{{ p.price | currency }}</td>
+                <td>
+                    {% set alert = p.get('low_stock_alert', 5) %}
+                    {% if p.stock == 0 %}<span class="stock-badge stock-out">Out</span>
+                    {% elif p.stock <= alert %}<span class="stock-badge stock-low">{{ p.stock }}</span>
+                    {% else %}<span class="stock-badge stock-ok">{{ p.stock }}</span>{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">No products linked to this supplier. Set supplier_id in inventory to link products.</div>
+    {% endif %}
+</div>
+{% endblock %}

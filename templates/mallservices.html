@@ -1,0 +1,313 @@
+{% extends "base.html" %}
+{% block title %}Mall Services — MallOS{% endblock %}
+{% block page_label %}Operations{% endblock %}
+{% block page_heading %}Mall Services{% endblock %}
+{% block content %}
+
+<div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px">
+    <div class="stat-card accent-teal">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <rect x="1" y="3" width="15" height="13" rx="1" />
+                <path d="M16 8h4l3 3v5h-7V8z" />
+            </svg></div>
+        <div class="stat-data">
+            <div class="stat-value">{{ available_slots }}<span style="font-size:14px;color:var(--muted)">/{{ total_slots
+                    }}</span></div>
+            <div class="stat-label">Parking Free</div>
+        </div>
+    </div>
+    <div class="stat-card accent-purple">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <rect x="3" y="4" width="18" height="18" rx="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+            </svg></div>
+        <div class="stat-data">
+            <div class="stat-value">{{ upcoming_events }}</div>
+            <div class="stat-label">Upcoming Events</div>
+        </div>
+    </div>
+    <div class="stat-card accent-amber">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M3 2h18l-2 7H5L3 2z" />
+                <path d="M5 9v13h14V9" />
+            </svg></div>
+        <div class="stat-data">
+            <div class="stat-value">{{ open_stalls }}</div>
+            <div class="stat-label">Open Stalls</div>
+        </div>
+    </div>
+    <div class="stat-card accent-blue">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <rect x="2" y="3" width="20" height="14" rx="2" />
+                <line x1="8" y1="21" x2="16" y2="21" />
+                <line x1="12" y1="17" x2="12" y2="21" />
+            </svg></div>
+        <div class="stat-data">
+            <div class="stat-value">{{ active_screens }}</div>
+            <div class="stat-label">Active Screens</div>
+        </div>
+    </div>
+</div>
+
+<!-- Parking -->
+<div class="card" style="margin-bottom:20px">
+    <div class="card-header">
+        <h2 class="card-title">🅿️ Parking Management <span class="count-pill">{{ parking_slots|length }} slots</span>
+        </h2>
+        <button onclick="toggleSection('parking-form')" class="btn-edit">+ Add Slot</button>
+    </div>
+    <div id="parking-form" style="display:none;padding:16px;border-bottom:1px solid var(--border)">
+        <form method="POST" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+            <input type="hidden" name="action" value="add_parking">
+            <div class="form-group" style="flex:1;min-width:120px"><label class="form-label">Slot ID</label><input
+                    type="text" name="slot_id" class="form-input" placeholder="A-01" required></div>
+            <div class="form-group" style="flex:1;min-width:120px"><label class="form-label">Type</label>
+                <select name="type" class="form-input">
+                    <option value="car">Car</option>
+                    <option value="bike">Bike</option>
+                    <option value="handicap">Handicap</option>
+                    <option value="vip">VIP</option>
+                </select>
+            </div>
+            <div class="form-group" style="flex:1;min-width:120px"><label class="form-label">Floor</label>
+                <select name="floor" class="form-input">
+                    <option>B1</option>
+                    <option>B2</option>
+                    <option>Ground</option>
+                    <option>Rooftop</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary" style="align-self:flex-end;padding:9px 20px">Add</button>
+        </form>
+    </div>
+    {% if parking_slots %}
+    <div style="padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px">
+        {% for slot in parking_slots %}
+        <div class="parking-slot parking-{{ slot.status }}" title="{{ slot.type }} · {{ slot.floor }}">
+            <div class="slot-id">{{ slot.slot_id }}</div>
+            <div class="slot-type">{{ slot.type }}</div>
+            <div class="slot-floor">{{ slot.floor }}</div>
+            <div style="display:flex;gap:4px;margin-top:6px">
+                <form method="POST" style="flex:1">
+                    <input type="hidden" name="action" value="toggle_parking">
+                    <input type="hidden" name="slot_id" value="{{ slot._id }}">
+                    <button type="submit" class="slot-toggle">{{ '🔓 Free' if slot.status == 'occupied' else '🔒 Occ'
+                        }}</button>
+                </form>
+                <a href="{{ url_for('delete_parking', id=slot._id) }}" onclick="return confirm('Remove slot?')"
+                    style="color:var(--rose);font-size:11px;align-self:center">✕</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">No parking slots added yet.</div>
+    {% endif %}
+</div>
+
+<!-- Events -->
+<div class="two-col" style="margin-bottom:20px">
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">📅 Add Event</h2>
+        </div>
+        <form method="POST" class="form-grid">
+            <input type="hidden" name="action" value="add_event">
+            <div class="form-group form-full"><label class="form-label">Event Name *</label><input type="text"
+                    name="event_name" class="form-input" required placeholder="e.g. Summer Sale Festival"></div>
+            <div class="form-group"><label class="form-label">Venue</label><input type="text" name="venue"
+                    class="form-input" placeholder="e.g. Atrium, Ground Floor"></div>
+            <div class="form-group"><label class="form-label">Date</label><input type="date" name="event_date"
+                    class="form-input"></div>
+            <div class="form-group"><label class="form-label">Time</label><input type="time" name="event_time"
+                    class="form-input"></div>
+            <div class="form-group form-full"><label class="form-label">Description</label><input type="text"
+                    name="description" class="form-input" placeholder="Brief description..."></div>
+            <div class="form-group form-full"><button type="submit" class="btn btn-primary">+ Add Event</button></div>
+        </form>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">Events <span class="count-pill">{{ events|length }}</span></h2>
+        </div>
+        {% if events %}
+        <div class="table-wrap">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Event</th>
+                        <th>Venue</th>
+                        <th>Date</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ev in events %}
+                    <tr>
+                        <td><strong>{{ ev.name }}</strong>
+                            <div class="muted" style="font-size:11px">{{ ev.description[:40] if ev.description else ''
+                                }}</div>
+                        </td>
+                        <td class="muted">{{ ev.venue or '—' }}</td>
+                        <td class="muted" style="font-size:12px">{{ ev.date or '—' }}{% if ev.time %} {{ ev.time }}{%
+                            endif %}</td>
+                        <td><span class="event-status event-{{ ev.status }}">{{ ev.status|title }}</span></td>
+                        <td style="display:flex;gap:4px">
+                            <form method="POST" action="{{ url_for('update_event', id=ev._id) }}">
+                                <select name="status" class="form-input"
+                                    style="padding:4px 6px;font-size:11px;width:auto" onchange="this.form.submit()">
+                                    <option value="upcoming" {% if ev.status=='upcoming' %}selected{% endif %}>Upcoming
+                                    </option>
+                                    <option value="ongoing" {% if ev.status=='ongoing' %}selected{% endif %}>Ongoing
+                                    </option>
+                                    <option value="completed" {% if ev.status=='completed' %}selected{% endif %}>
+                                        Completed</option>
+                                    <option value="cancelled" {% if ev.status=='cancelled' %}selected{% endif %}>
+                                        Cancelled</option>
+                                </select>
+                            </form>
+                            <a href="{{ url_for('delete_event', id=ev._id) }}" class="btn-delete"
+                                onclick="return confirm('Delete?')">Del</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">No events yet.</div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Food Court & Cinema -->
+<div class="two-col">
+    <!-- Food Court -->
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">🍜 Food Court</h2><button onclick="toggleSection('stall-form')" class="btn-edit">+
+                Add</button>
+        </div>
+        <div id="stall-form" style="display:none;padding:16px;border-bottom:1px solid var(--border)">
+            <form method="POST" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+                <input type="hidden" name="action" value="add_stall">
+                <div style="flex:1;min-width:120px"><label class="form-label">Stall Name</label><input type="text"
+                        name="stall_name" class="form-input" placeholder="e.g. Domino's" required></div>
+                <div style="flex:1;min-width:100px"><label class="form-label">Cuisine</label><input type="text"
+                        name="cuisine" class="form-input" placeholder="Italian"></div>
+                <div style="flex:1;min-width:100px"><label class="form-label">Owner</label><input type="text"
+                        name="owner" class="form-input" placeholder="Owner name"></div>
+                <div style="flex:1;min-width:100px"><label class="form-label">Status</label>
+                    <select name="stall_status" class="form-input">
+                        <option value="open">Open</option>
+                        <option value="closed">Closed</option>
+                        <option value="renovation">Renovation</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary" style="padding:9px 16px;align-self:flex-end">Add</button>
+            </form>
+        </div>
+        {% if stalls %}
+        <div class="table-wrap">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Stall</th>
+                        <th>Cuisine</th>
+                        <th>Owner</th>
+                        <th>Status</th>
+                        <th>Del</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in stalls %}
+                    <tr>
+                        <td><strong>{{ s.name }}</strong></td>
+                        <td class="muted">{{ s.cuisine or '—' }}</td>
+                        <td class="muted">{{ s.owner or '—' }}</td>
+                        <td><span class="stall-status stall-{{ s.status }}">{{ s.status|title }}</span></td>
+                        <td><a href="{{ url_for('delete_stall', id=s._id) }}" class="btn-delete"
+                                onclick="return confirm('Remove?')">✕</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">No stalls added.</div>
+        {% endif %}
+    </div>
+
+    <!-- Cinema -->
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">🎬 Cinema Screens</h2><button onclick="toggleSection('cinema-form')"
+                class="btn-edit">+ Add</button>
+        </div>
+        <div id="cinema-form" style="display:none;padding:16px;border-bottom:1px solid var(--border)">
+            <form method="POST" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+                <input type="hidden" name="action" value="add_screen">
+                <div style="flex:1;min-width:80px"><label class="form-label">Screen</label><input type="text"
+                        name="screen" class="form-input" placeholder="Screen 1" required></div>
+                <div style="flex:2;min-width:140px"><label class="form-label">Now Playing</label><input type="text"
+                        name="movie" class="form-input" placeholder="Movie title" required></div>
+                <div style="flex:1;min-width:120px"><label class="form-label">Show Times</label><input type="text"
+                        name="show_times" class="form-input" placeholder="10:00, 14:00, 18:00"></div>
+                <div style="flex:1;min-width:80px"><label class="form-label">Seats</label><input type="number"
+                        name="seats" class="form-input" placeholder="200" min="0"></div>
+                <div style="flex:1;min-width:100px"><label class="form-label">Status</label>
+                    <select name="screen_status" class="form-input">
+                        <option value="active">Active</option>
+                        <option value="maintenance">Maintenance</option>
+                        <option value="closed">Closed</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary" style="padding:9px 16px;align-self:flex-end">Add</button>
+            </form>
+        </div>
+        {% if screens %}
+        <div class="table-wrap">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Screen</th>
+                        <th>Movie</th>
+                        <th>Shows</th>
+                        <th>Seats</th>
+                        <th>Status</th>
+                        <th>Del</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sc in screens %}
+                    <tr>
+                        <td><strong>{{ sc.screen }}</strong></td>
+                        <td>{{ sc.movie }}</td>
+                        <td class="muted" style="font-size:11px">{{ sc.show_times or '—' }}</td>
+                        <td class="muted">{{ sc.seats or '—' }}</td>
+                        <td><span class="stall-status stall-{{ sc.status }}">{{ sc.status|title }}</span></td>
+                        <td><a href="{{ url_for('delete_screen', id=sc._id) }}" class="btn-delete"
+                                onclick="return confirm('Remove?')">✕</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">No screens added.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+    function toggleSection(id) {
+        const el = document.getElementById(id);
+        el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    }
+</script>
+{% endblock %}

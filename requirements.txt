@@ -1,0 +1,12 @@
+flask
+pymongo
+python-dotenv
+gunicorn
+pandas
+openpyxl
+reportlab
+werkzeug
+razorpay
+bcrypt
+PyJWT
+dnspython

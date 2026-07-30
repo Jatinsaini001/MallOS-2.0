@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}Feedback — MallOS{% endblock %}
+{% block page_label %}Growth{% endblock %}
+{% block page_heading %}Feedback & Reviews{% endblock %}
+{% block content %}
+
+<div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px">
+    <div class="stat-card accent-teal">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div>
+        <div class="stat-data"><div class="stat-value">{{ total_fb }}</div><div class="stat-label">Total Feedback</div></div>
+    </div>
+    <div class="stat-card accent-amber">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
+        <div class="stat-data"><div class="stat-value">{{ avg_rating }}/5</div><div class="stat-label">Avg Rating</div></div>
+    </div>
+    <div class="stat-card accent-blue">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+        <div class="stat-data"><div class="stat-value">{{ new_count }}</div><div class="stat-label">Awaiting Response</div></div>
+    </div>
+    <div class="stat-card accent-rose">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg></div>
+        <div class="stat-data"><div class="stat-value">{{ complaints }}</div><div class="stat-label">Complaints</div></div>
+    </div>
+</div>
+
+<div class="two-col-wide">
+    <!-- Submit Feedback -->
+    <div class="card">
+        <div class="card-header"><h2 class="card-title">Submit Feedback</h2></div>
+        <form method="POST" class="form-grid">
+            <input type="hidden" name="action" value="add_feedback">
+            <div class="form-group"><label class="form-label">Customer Name *</label><input type="text" name="customer_name" class="form-input" required placeholder="Name"></div>
+            <div class="form-group"><label class="form-label">Contact</label><input type="text" name="contact" class="form-input" placeholder="Phone/Email"></div>
+            <div class="form-group"><label class="form-label">Type *</label>
+                <select name="feedback_type" class="form-input" required>
+                    <option value="review">Review</option>
+                    <option value="complaint">Complaint</option>
+                    <option value="suggestion">Suggestion</option>
+                    <option value="compliment">Compliment</option>
+                </select>
+            </div>
+            <div class="form-group"><label class="form-label">Category</label>
+                <select name="category" class="form-input">
+                    <option>General</option><option>Cleanliness</option><option>Security</option>
+                    <option>Staff Behaviour</option><option>Parking</option><option>Food Court</option>
+                    <option>Shop Service</option><option>Facilities</option>
+                </select>
+            </div>
+            <div class="form-group"><label class="form-label">Related Shop</label>
+                <select name="shop" class="form-input">
+                    <option value="">General / Mall</option>
+                    {% for s in shops_list %}<option value="{{ s.shop_name }}">{{ s.shop_name }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="form-group"><label class="form-label">Rating</label>
+                <select name="rating" class="form-input">
+                    <option value="5">⭐⭐⭐⭐⭐ Excellent</option>
+                    <option value="4">⭐⭐⭐⭐ Good</option>
+                    <option value="3" selected>⭐⭐⭐ Average</option>
+                    <option value="2">⭐⭐ Poor</option>
+                    <option value="1">⭐ Very Poor</option>
+                </select>
+            </div>
+            <div class="form-group form-full"><label class="form-label">Message *</label><textarea name="message" class="form-input" required placeholder="Write feedback here..." style="height:80px;resize:vertical"></textarea></div>
+            <div class="form-group form-full"><button type="submit" class="btn btn-primary">Submit Feedback</button></div>
+        </form>
+    </div>
+
+    <!-- Feedback List -->
+    <div class="card card-wide">
+        <div class="card-header">
+            <h2 class="card-title">All Feedback <span class="count-pill">{{ feedback_list|length }}</span></h2>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <div class="filter-tabs">
+                    <a href="?type=all" class="filter-tab {% if ftype=='all' %}active{% endif %}">All</a>
+                    <a href="?type=complaint" class="filter-tab {% if ftype=='complaint' %}active{% endif %}">Complaints</a>
+                    <a href="?type=review" class="filter-tab {% if ftype=='review' %}active{% endif %}">Reviews</a>
+                    <a href="?type=suggestion" class="filter-tab {% if ftype=='suggestion' %}active{% endif %}">Suggestions</a>
+                </div>
+                <div class="filter-tabs">
+                    <a href="?status=new" class="filter-tab {% if status=='new' %}active{% endif %}">New</a>
+                    <a href="?status=responded" class="filter-tab {% if status=='responded' %}active{% endif %}">Responded</a>
+                </div>
+            </div>
+        </div>
+        {% if feedback_list %}
+        <div style="display:flex;flex-direction:column;gap:0">
+        {% for fb in feedback_list %}
+        <div class="feedback-card {% if fb.type == 'complaint' %}feedback-complaint{% endif %}">
+            <div class="feedback-header">
+                <div style="display:flex;align-items:center;gap:10px">
+                    <div class="feedback-avatar">{{ fb.customer_name[0].upper() }}</div>
+                    <div>
+                        <div style="font-weight:600;font-size:14px">{{ fb.customer_name }}</div>
+                        <div style="font-size:11px;color:var(--muted)">{{ fb.contact or '' }} {% if fb.shop %}· {{ fb.shop }}{% endif %}</div>
+                    </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px">
+                    <div class="star-mini">{% for i in range(fb.rating) %}★{% endfor %}{% for i in range(5 - fb.rating) %}<span style="color:var(--border)">★</span>{% endfor %}</div>
+                    <span class="chip {% if fb.type=='complaint' %}chip-rose{% elif fb.type=='compliment' %}chip-green{% else %}chip-blue{% endif %}">{{ fb.type|title }}</span>
+                    <span class="fb-status fb-{{ fb.status }}">{{ fb.status|title }}</span>
+                </div>
+            </div>
+            <div class="feedback-msg">{{ fb.message }}</div>
+            {% if fb.response %}
+            <div class="feedback-response">
+                <div style="font-size:11px;color:var(--teal);font-weight:600;margin-bottom:4px">↩ Response by {{ fb.responded_by or 'Management' }}</div>
+                <div style="font-size:13px">{{ fb.response }}</div>
+            </div>
+            {% endif %}
+            {% if fb.status == 'new' %}
+            <form method="POST" style="margin-top:10px;display:flex;gap:8px">
+                <input type="hidden" name="action" value="respond">
+                <input type="hidden" name="feedback_id" value="{{ fb._id }}">
+                <input type="text" name="staff_name" class="form-input" placeholder="Your name" style="width:140px;flex-shrink:0">
+                <input type="text" name="response" class="form-input" required placeholder="Type your response...">
+                <button type="submit" class="btn-edit" style="white-space:nowrap;padding:8px 14px">Send</button>
+            </form>
+            {% endif %}
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+                <span style="font-size:11px;color:var(--muted)">{{ fb.created_at.strftime('%d %b %Y, %I:%M %p') if fb.created_at else '' }}</span>
+                <a href="{{ url_for('delete_feedback', id=fb._id) }}" class="btn-delete" style="font-size:11px" onclick="return confirm('Delete?')">Delete</a>
+            </div>
+        </div>
+        {% endfor %}
+        </div>
+        {% else %}<div class="empty-state">No feedback found.</div>{% endif %}
+    </div>
+</div>
+{% endblock %}

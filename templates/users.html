@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}User Management — MallOS{% endblock %}
+{% block page_label %}Admin{% endblock %}
+{% block page_heading %}User Management{% endblock %}
+
+{% block content %}
+<div class="two-col-wide">
+
+    <!-- Add User -->
+    <div class="card">
+        <div class="card-header"><h2 class="card-title">Add New User</h2></div>
+        <form method="POST" action="{{ url_for('manage_users') }}" class="form-grid">
+            <input type="hidden" name="action" value="create">
+            <div class="form-group form-full">
+                <label class="form-label">Username *</label>
+                <input type="text" name="username" class="form-input" required placeholder="e.g. john_cashier">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Password *</label>
+                <input type="password" name="password" class="form-input" required placeholder="Min 6 characters">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Role *</label>
+                <select name="role" class="form-input" required>
+                    <option value="cashier">Cashier — POS only</option>
+                    <option value="manager">Manager — Most modules</option>
+                    <option value="admin">Admin — Full access</option>
+                </select>
+            </div>
+            <div class="form-group form-full">
+                <button type="submit" class="btn btn-primary">+ Create User</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Users List -->
+    <div class="card card-wide">
+        <div class="card-header">
+            <h2 class="card-title">All Users <span class="count-pill">{{ users|length }}</span></h2>
+        </div>
+        <div class="table-wrap">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Username</th>
+                        <th>Role</th>
+                        <th>Created</th>
+                        <th>Change Password</th>
+                        <th>Delete</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for u in users %}
+                <tr>
+                    <td class="muted">{{ u.id }}</td>
+                    <td>
+                        <strong>{{ u.username }}</strong>
+                        {% if u.id == current_user.id %}
+                        <span class="chip chip-blue" style="font-size:10px;margin-left:6px">You</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if u.role == 'admin' %}
+                            <span class="role-badge role-admin">Admin</span>
+                        {% elif u.role == 'manager' %}
+                            <span class="role-badge role-manager">Manager</span>
+                        {% else %}
+                            <span class="role-badge role-cashier">Cashier</span>
+                        {% endif %}
+                    </td>
+                    <td class="muted" style="font-size:12px">{{ u.created_at[:10] if u.created_at else '—' }}</td>
+                    <td>
+                        <form method="POST" action="{{ url_for('manage_users') }}" style="display:flex;gap:6px">
+                            <input type="hidden" name="action" value="change_password">
+                            <input type="hidden" name="user_id" value="{{ u.id }}">
+                            <input type="password" name="new_password" class="form-input"
+                                   placeholder="New password" style="width:150px;padding:6px 10px;font-size:12px">
+                            <button type="submit" class="btn-edit">Update</button>
+                        </form>
+                    </td>
+                    <td>
+                        {% if u.id != current_user.id %}
+                        <form method="POST" action="{{ url_for('manage_users') }}"
+                              onsubmit="return confirm('Delete user {{ u.username }}?')">
+                            <input type="hidden" name="action" value="delete">
+                            <input type="hidden" name="user_id" value="{{ u.id }}">
+                            <button type="submit" class="btn-delete">Delete</button>
+                        </form>
+                        {% else %}
+                        <span class="muted" style="font-size:12px">—</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- Role permissions info -->
+<div class="card" style="margin-top:20px">
+    <div class="card-header"><h2 class="card-title">Role Permissions</h2></div>
+    <div style="padding:20px;display:grid;grid-template-columns:repeat(3,1fr);gap:20px">
+        <div style="background:var(--surface2);border-radius:10px;padding:16px;border:1px solid rgba(251,113,133,.2)">
+            <div style="font-family:'Syne',sans-serif;font-weight:700;color:var(--rose);margin-bottom:10px">👑 Admin</div>
+            <div style="font-size:12px;color:var(--muted);line-height:2">
+                Full access to all modules<br>
+                User management<br>
+                Finance & Reports<br>
+                AI Insights<br>
+                All settings
+            </div>
+        </div>
+        <div style="background:var(--surface2);border-radius:10px;padding:16px;border:1px solid rgba(251,191,36,.2)">
+            <div style="font-family:'Syne',sans-serif;font-weight:700;color:var(--amber);margin-bottom:10px">🏢 Manager</div>
+            <div style="font-size:12px;color:var(--muted);line-height:2">
+                Dashboard & Reports<br>
+                POS & Inventory<br>
+                Customers & Suppliers<br>
+                Maintenance & Security<br>
+                Cannot manage users
+            </div>
+        </div>
+        <div style="background:var(--surface2);border-radius:10px;padding:16px;border:1px solid rgba(45,212,191,.2)">
+            <div style="font-family:'Syne',sans-serif;font-weight:700;color:var(--teal);margin-bottom:10px">💳 Cashier</div>
+            <div style="font-size:12px;color:var(--muted);line-height:2">
+                Dashboard (read-only)<br>
+                POS terminal<br>
+                View orders<br>
+                View inventory<br>
+                No management access
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

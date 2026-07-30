@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register — MallOS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0d0f14; --surface: #141820; --surface2: #1c2130;
+            --border: #252d3d; --text: #e2e8f4; --muted: #6b7a99;
+            --teal: #2dd4bf; --rose: #fb7185; --green: #4ade80; --radius: 10px;
+        }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg); color: var(--text);
+            min-height: 100vh; display: flex;
+            align-items: center; justify-content: center; padding: 20px;
+        }
+        .wrap {
+            width: 100%; max-width: 440px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 18px; padding: 40px;
+            box-shadow: 0 24px 64px rgba(0,0,0,.4);
+        }
+        .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+        .logo {
+            width: 42px; height: 42px;
+            background: linear-gradient(135deg, var(--teal), #0891b2);
+            border-radius: 10px; display: grid; place-items: center;
+            font-family: 'Syne', sans-serif; font-weight: 800; font-size: 20px; color: #0d0f14;
+        }
+        .brand-name { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 800; }
+        .title { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; margin-bottom: 4px; }
+        .sub { font-size: 13px; color: var(--muted); margin-bottom: 24px; }
+        .flash-msg {
+            padding: 10px 14px; border-radius: 8px; font-size: 13px;
+            margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
+        }
+        .flash-error   { background: rgba(251,113,133,.1); border: 1px solid rgba(251,113,133,.3); color: var(--rose); }
+        .flash-success { background: rgba(74,222,128,.1);  border: 1px solid rgba(74,222,128,.3);  color: var(--green); }
+        .form-group { margin-bottom: 16px; }
+        label { display: block; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+        .input-wrap { position: relative; }
+        .input-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+        input[type="text"], input[type="password"], select {
+            width: 100%; background: var(--surface2);
+            border: 1px solid var(--border); color: var(--text);
+            padding: 10px 12px 10px 38px; border-radius: 8px;
+            font-size: 14px; font-family: 'DM Sans', sans-serif;
+            outline: none; transition: border-color .15s, box-shadow .15s;
+        }
+        select { padding-left: 12px; }
+        input:focus, select:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(45,212,191,.1); }
+        .toggle-pw { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--muted); cursor: pointer; font-size: 15px; }
+        .btn {
+            width: 100%; background: var(--teal); color: #0d0f14;
+            border: none; border-radius: 8px; padding: 12px;
+            font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700;
+            cursor: pointer; transition: opacity .15s; margin-top: 8px;
+        }
+        .btn:hover { opacity: .9; }
+        .link-row { text-align: center; margin-top: 16px; font-size: 13px; color: var(--muted); }
+        .link-row a { color: var(--teal); text-decoration: none; font-weight: 600; }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <div class="brand">
+        <div class="logo">M</div>
+        <div><div class="brand-name">MallOS</div><div style="font-size:11px;color:var(--muted)">Management System</div></div>
+    </div>
+    <div class="title">Create Account</div>
+    <div class="sub">Add a new user to MallOS</div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}{% for cat, msg in messages %}
+    <div class="flash-msg flash-{{ cat }}">{% if cat == 'error' %}⚠{% else %}✅{% endif %} {{ msg }}</div>
+    {% endfor %}{% endif %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('register') }}">
+        <div class="form-group">
+            <label for="username">Username</label>
+            <div class="input-wrap">
+                <svg class="input-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <input type="text" id="username" name="username" value="{{ form.get('username','') }}" placeholder="e.g. john_staff" required autofocus>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="role">Role</label>
+            <select id="role" name="role">
+                <option value="cashier"  {% if form.get('role','cashier') == 'cashier'  %}selected{% endif %}>Cashier</option>
+                <option value="manager"  {% if form.get('role') == 'manager'  %}selected{% endif %}>Manager</option>
+                <option value="admin"    {% if form.get('role') == 'admin'    %}selected{% endif %}>Admin</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="password">Password</label>
+            <div class="input-wrap">
+                <svg class="input-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                <input type="password" id="password" name="password" placeholder="Min 6 characters" required>
+                <button type="button" class="toggle-pw" onclick="togglePw('password')">👁</button>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="confirm_password">Confirm Password</label>
+            <div class="input-wrap">
+                <svg class="input-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                <input type="password" id="confirm_password" name="confirm_password" placeholder="Repeat password" required>
+                <button type="button" class="toggle-pw" onclick="togglePw('confirm_password')">👁</button>
+            </div>
+        </div>
+        <button type="submit" class="btn">Create Account →</button>
+    </form>
+
+    <div class="link-row">Already have an account? <a href="{{ url_for('login') }}">Sign in</a></div>
+</div>
+<script>
+function togglePw(id) {
+    const el = document.getElementById(id);
+    el.type = el.type === 'password' ? 'text' : 'password';
+}
+document.querySelector('form').addEventListener('submit', function(e) {
+    if (document.getElementById('password').value !== document.getElementById('confirm_password').value) {
+        e.preventDefault();
+        alert('Passwords do not match.');
+    }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Finance — MallOS{% endblock %}
+{% block page_label %}Operations{% endblock %}
+{% block page_heading %}Finance{% endblock %}
+{% block content %}
+
+<div class="stats-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px">
+    <div class="stat-card accent-green">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></div>
+        <div class="stat-data"><div class="stat-value">{{ total_income | currency }}</div><div class="stat-label">Total Income</div></div>
+    </div>
+    <div class="stat-card accent-rose">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg></div>
+        <div class="stat-data"><div class="stat-value">{{ total_expense | currency }}</div><div class="stat-label">Total Expenses</div></div>
+    </div>
+    <div class="stat-card {% if profit >= 0 %}accent-teal{% else %}accent-rose{% endif %}">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div>
+        <div class="stat-data"><div class="stat-value">{{ profit | currency }}</div><div class="stat-label">{% if profit >= 0 %}Net Profit{% else %}Net Loss{% endif %}</div></div>
+    </div>
+</div>
+
+<div class="two-col-wide">
+    <!-- Add Expense -->
+    <div class="card">
+        <div class="card-header"><h2 class="card-title">Record Expense</h2></div>
+        <form method="POST" class="form-grid">
+            <div class="form-group form-full"><label class="form-label">Title *</label><input type="text" name="title" class="form-input" required placeholder="e.g. Generator Fuel"></div>
+            <div class="form-group"><label class="form-label">Amount (₹) *</label><input type="number" name="amount" class="form-input" min="0" step="0.01" required placeholder="5000"></div>
+            <div class="form-group"><label class="form-label">Category *</label>
+                <select name="category" class="form-input" required>
+                    <option value="">Select</option>
+                    <option>Utilities</option><option>Maintenance</option><option>Salaries</option>
+                    <option>Security</option><option>Marketing</option><option>Rent</option>
+                    <option>Supplies</option><option>Insurance</option><option>Other</option>
+                </select>
+            </div>
+            <div class="form-group"><label class="form-label">Paid To</label><input type="text" name="paid_to" class="form-input" placeholder="Vendor name"></div>
+            <div class="form-group"><label class="form-label">Date</label><input type="date" name="date" class="form-input" value="{{ now.strftime('%Y-%m-%d') if now else '' }}"></div>
+            <div class="form-group"><label class="form-label">Note</label><input type="text" name="note" class="form-input" placeholder="Optional note"></div>
+            <div class="form-group form-full"><button type="submit" class="btn btn-primary">+ Record Expense</button></div>
+        </form>
+    </div>
+
+    <!-- Expense List -->
+    <div class="card card-wide">
+        <div class="card-header">
+            <h2 class="card-title">Expense Records <span class="count-pill">{{ expenses|length }}</span></h2>
+            {% if cat_agg %}
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+                {% for c in cat_agg %}
+                <span class="chip chip-blue" style="font-size:11px">{{ c._id }}: {{ c.total | currency }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% if expenses %}
+        <div class="table-wrap">
+            <table class="table">
+                <thead><tr><th>#</th><th>Title</th><th>Category</th><th>Paid To</th><th>Amount</th><th>Date</th><th>Note</th><th>Action</th></tr></thead>
+                <tbody>
+                {% for e in expenses %}
+                <tr>
+                    <td class="muted">{{ loop.index }}</td>
+                    <td><strong>{{ e.title }}</strong></td>
+                    <td><span class="chip chip-blue">{{ e.category }}</span></td>
+                    <td class="muted">{{ e.paid_to or '—' }}</td>
+                    <td class="amount">{{ e.amount | currency }}</td>
+                    <td class="muted" style="font-size:12px">{{ e.date or '—' }}</td>
+                    <td class="muted" style="font-size:12px">{{ e.note or '—' }}</td>
+                    <td><a href="{{ url_for('delete_expense', id=e._id) }}" class="btn-delete" onclick="return confirm('Delete?')">Del</a></td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">No expenses recorded yet.</div>
+        {% endif %}
+    </div>
+</div>
+
+{% if monthly_exp %}
+<div class="card" style="margin-top:20px">
+    <div class="card-header"><h2 class="card-title">Monthly Expense Trend</h2></div>
+    <div class="breakdown-list">
+        {% set max_val = monthly_exp | map(attribute='total') | max %}
+        {% for m in monthly_exp %}
+        <div class="breakdown-item">
+            <span class="breakdown-label">{{ m._id }}</span>
+            <div class="breakdown-bar-wrap"><div class="breakdown-bar breakdown-bar-amber" style="width:{{ (m.total / max_val * 100)|int if max_val else 0 }}%"></div></div>
+            <span class="breakdown-count" style="min-width:80px;text-align:right;color:var(--amber)">{{ m.total | currency }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

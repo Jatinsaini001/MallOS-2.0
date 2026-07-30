@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MallOS — Retail Management Platform</title>
+  <meta name="description" content="MallOS is the premier all-in-one retail management platform engineered for modern commercial spaces. AI Insights, POS, Inventory, and more." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1219;
+      --surface: #1a1e27;
+      --border: rgba(255,255,255,0.07);
+      --text: #d1d5db;
+      --muted: #6b7280;
+      --white: #ffffff;
+      --accent: #34d399;
+      --accent-hover: #2fbe8a;
+      --radius: 16px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    a { text-decoration: none; color: inherit; }
+    button { cursor: pointer; font-family: inherit; border: none; background: none; }
+
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(15,18,25,0.82);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: var(--white);
+      letter-spacing: -0.5px;
+    }
+    .logo span { color: var(--accent); }
+
+    .nav-actions { display: flex; align-items: center; gap: 12px; }
+
+    .btn-login {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text);
+      padding: 8px 14px;
+      border-radius: 8px;
+      transition: color 0.2s;
+    }
+    .btn-login:hover { color: var(--accent); }
+
+    .btn-register {
+      font-size: 0.875rem;
+      font-weight: 600;
+      padding: 9px 18px;
+      border-radius: 8px;
+      background: var(--accent);
+      color: var(--bg);
+      transition: background 0.2s, transform 0.15s;
+    }
+    .btn-register:hover { background: var(--accent-hover); }
+    .btn-register:active { transform: scale(0.96); }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      padding: 110px 24px 80px;
+      text-align: center;
+    }
+
+    .hero-glow {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: radial-gradient(ellipse 70% 55% at 50% 0%, rgba(52,211,153,0.10) 0%, transparent 70%);
+    }
+
+    .hero-content { position: relative; max-width: 860px; margin: 0 auto; }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(52,211,153,0.3);
+      background: rgba(52,211,153,0.08);
+      margin-bottom: 24px;
+    }
+
+    .badge-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.85); }
+    }
+
+    .badge-text {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--accent);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .hero h1 {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(2.8rem, 7vw, 5.5rem);
+      font-weight: 800;
+      line-height: 1.06;
+      letter-spacing: -1.5px;
+      color: var(--white);
+      margin-bottom: 20px;
+    }
+
+    .hero h1 .accent { color: var(--accent); }
+
+    .hero-sub {
+      font-size: 1.05rem;
+      color: var(--muted);
+      max-width: 500px;
+      margin: 0 auto;
+      line-height: 1.75;
+    }
+
+    .desc-section { padding: 0 24px 80px; }
+
+    .desc-card {
+      position: relative;
+      max-width: 900px;
+      margin: 0 auto;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 40px 48px;
+      overflow: hidden;
+    }
+
+    @media (max-width: 640px) { .desc-card { padding: 28px 24px; } }
+
+    .desc-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--accent) 50%, transparent);
+    }
+
+    .desc-card::after {
+      content: '';
+      position: absolute;
+      top: -40px; right: -40px;
+      width: 200px; height: 200px;
+      border-radius: 50%;
+      background: rgba(52,211,153,0.05);
+      filter: blur(40px);
+      pointer-events: none;
+    }
+
+    .desc-card p {
+      position: relative;
+      font-size: 1.05rem;
+      line-height: 1.9;
+      color: var(--text);
+    }
+
+    .blog-section { padding: 0 24px 100px; }
+
+    .blog-inner { max-width: 1200px; margin: 0 auto; }
+
+    .blog-header {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      margin-bottom: 36px;
+    }
+
+    .blog-header-text h2 {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: var(--white);
+      letter-spacing: -0.5px;
+    }
+
+    .blog-header-text p {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .blog-divider {
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+      display: none;
+    }
+
+    @media (min-width: 768px) { .blog-divider { display: block; } }
+
+    .article-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+
+    @media (min-width: 900px) { .article-grid { grid-template-columns: repeat(3, 1fr); } }
+
+    .article-card {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      transition: border-color 0.3s, transform 0.3s, box-shadow 0.3s;
+      overflow: hidden;
+    }
+
+    .article-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--accent) 50%, transparent);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .article-card:hover { border-color: rgba(52,211,153,0.4); transform: translateY(-4px); box-shadow: 0 0 40px -10px rgba(52,211,153,0.15); }
+    .article-card:hover::before { opacity: 1; }
+
+    .card-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+
+    .card-date { font-size: 0.75rem; color: var(--muted); font-weight: 500; }
+
+    .card-badge {
+      font-size: 0.68rem;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(52,211,153,0.3);
+      background: rgba(52,211,153,0.08);
+      color: var(--accent);
+      letter-spacing: 0.05em;
+    }
+
+    .card-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--white);
+      line-height: 1.4;
+      margin-bottom: 12px;
+      transition: color 0.2s;
+    }
+
+    .article-card:hover .card-title { color: var(--accent); }
+
+    .card-excerpt {
+      font-size: 0.85rem;
+      color: var(--muted);
+      line-height: 1.75;
+      flex: 1;
+      margin-bottom: 22px;
+    }
+
+    .btn-read {
+      align-self: flex-start;
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: 1px solid rgba(52,211,153,0.5);
+      color: var(--accent);
+      background: transparent;
+      transition: background 0.2s, color 0.2s, transform 0.15s;
+    }
+
+    .btn-read:hover { background: var(--accent); color: var(--bg); }
+    .btn-read:active { transform: scale(0.95); }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 28px 24px;
+    }
+
+    .footer-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .footer-copy { font-size: 0.82rem; color: var(--muted); }
+    .footer-copy span { color: var(--accent); }
+
+    .footer-links { display: flex; align-items: center; gap: 20px; }
+
+    .footer-links a {
+      font-size: 0.78rem;
+      color: var(--muted);
+      transition: color 0.2s;
+    }
+    .footer-links a:hover { color: var(--accent); }
+
+    .footer-loc { font-size: 0.78rem; color: #4b5563; }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <div class="nav-inner">
+      <div class="logo">Mall<span>OS</span></div>
+      <div class="nav-actions">
+        <a href="{{ url_for('login') }}" class="btn-login">Login</a>
+        <a href="{{ url_for('register') }}" class="btn-register">Register</a>
+      </div>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <div class="hero-glow"></div>
+    <div class="hero-content">
+      <div class="hero-badge">
+        <span class="badge-dot"></span>
+        <span class="badge-text">Platform Overview</span>
+      </div>
+      <h1>MallOS <span class="accent">Knowledge</span> Base</h1>
+      <p class="hero-sub">
+        The definitive resource for administrators, operators, and teams
+        powering modern commercial spaces with MallOS.
+      </p>
+    </div>
+  </section>
+
+  <section class="desc-section">
+    <div class="desc-card">
+      <p>
+        Experience the ultimate control over your retail ecosystem with
+        MallOS, the premier all-in-one management platform engineered
+        for modern commercial spaces. Whether you are overseeing a
+        bustling commercial hub here in Faridabad or scaling operations
+        across multiple cities, we offer a seamless blend of high-speed
+        point-of-sale operations, intelligent inventory tracking, and
+        comprehensive facility oversight. Built with robust,
+        production-grade architecture, our state-of-the-art AI Insights
+        engine, strict multi-tier security protocols, and dynamic
+        financial dashboards create a streamlined environment for
+        administrators and staff alike. From managing high-volume street
+        food junctions to maintaining pristine retail wings, MallOS
+        centralizes every aspect of your daily operations, making it the
+        most powerful digital foundation for any thriving shopping
+        destination.
+      </p>
+    </div>
+  </section>
+
+  <section class="blog-section">
+    <div class="blog-inner">
+      <div class="blog-header">
+        <div class="blog-header-text">
+          <h2>Latest Articles</h2>
+          <p>Insights, guides, and deep dives from the MallOS team</p>
+        </div>
+        <div class="blog-divider"></div>
+      </div>
+      <div class="article-grid">
+
+        <article class="article-card">
+          <div class="card-meta">
+            <span class="card-date">July 18, 2026</span>
+            <span class="card-badge">5 min read</span>
+          </div>
+          <h3 class="card-title">Mastering High-Volume POS: How MallOS Handles Peak Rush Hours</h3>
+          <p class="card-excerpt">
+            When footfall spikes during weekends and festivals, every second at the counter counts.
+            Discover how MallOS's real-time transaction engine keeps queues moving and revenue flowing
+            — even under extreme load.
+          </p>
+          <a href="#" class="btn-read">Read Article →</a>
+        </article>
+
+        <article class="article-card">
+          <div class="card-meta">
+            <span class="card-date">July 22, 2026</span>
+            <span class="card-badge">4 min read</span>
+          </div>
+          <h3 class="card-title">AI Insights Engine: Turning Raw Sales Data into Actionable Strategy</h3>
+          <p class="card-excerpt">
+            Beyond dashboards and charts lies genuine intelligence. Learn how MallOS's built-in
+            AI Insights module surfaces demand forecasts, anomaly alerts, and revenue opportunity
+            signals that your team can act on immediately.
+          </p>
+          <a href="#" class="btn-read">Read Article →</a>
+        </article>
+
+        <article class="article-card">
+          <div class="card-meta">
+            <span class="card-date">July 28, 2026</span>
+            <span class="card-badge">6 min read</span>
+          </div>
+          <h3 class="card-title">Multi-Tier Security in Retail Operations: A MallOS Deep Dive</h3>
+          <p class="card-excerpt">
+            Role-based access, audit trails, session controls, and encrypted data pathways —
+            MallOS ships with enterprise-grade security baked in. Walk through the exact layers
+            protecting your tenants, staff, and customer data.
+          </p>
+          <a href="#" class="btn-read">Read Article →</a>
+        </article>
+
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="footer-inner">
+      <p class="footer-copy">© 2026 Mall<span>OS</span>. All rights reserved.</p>
+      <div class="footer-links">
+        <a href="{{ url_for('login') }}">Login</a>
+        <a href="{{ url_for('register') }}">Register</a>
+        <span class="footer-loc">Faridabad, India</span>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>

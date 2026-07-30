@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Access Denied — MallOS{% endblock %}
+{% block page_label %}Error{% endblock %}
+{% block page_heading %}Access Denied{% endblock %}
+
+{% block content %}
+<div style="display:flex;align-items:center;justify-content:center;min-height:60vh">
+    <div style="text-align:center;max-width:480px">
+
+        <!-- Icon -->
+        <div style="font-size:64px;margin-bottom:16px">🔒</div>
+
+        <!-- 403 -->
+        <div style="font-family:'Syne',sans-serif;font-size:72px;font-weight:800;
+                    color:var(--border);line-height:1;margin-bottom:8px">403</div>
+
+        <h2 style="font-family:'Syne',sans-serif;font-size:22px;font-weight:700;margin-bottom:10px">
+            You don't have permission to view this page
+        </h2>
+
+        <p style="color:var(--muted);font-size:14px;line-height:1.7;margin-bottom:24px">
+            Your current role is
+            <span class="role-badge role-{{ user_role }}" style="font-size:12px">{{ user_role|title }}</span>
+            but this page requires
+            {% for r in required_roles %}
+                <span class="role-badge role-{{ r }}" style="font-size:12px">{{ r|title }}</span>{% if not loop.last %} or {% endif %}
+            {% endfor %}
+            access.
+        </p>
+
+        <!-- Actions -->
+        <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+            <a href="{{ url_for('dashboard') }}"
+               class="btn btn-primary"
+               style="text-decoration:none;padding:11px 24px">
+                ← Go to Dashboard
+            </a>
+            <button onclick="window.history.back()"
+                    class="btn btn-cancel"
+                    style="padding:11px 24px">
+                Go Back
+            </button>
+        </div>
+
+        <!-- What you can access -->
+        <div style="margin-top:36px;background:var(--surface);border:1px solid var(--border);
+                    border-radius:var(--radius);padding:20px;text-align:left">
+            <div style="font-size:11px;font-weight:700;letter-spacing:1px;
+                        color:var(--muted);text-transform:uppercase;margin-bottom:14px">
+                Your Access Level — {{ user_role|title }}
+            </div>
+
+            {% if user_role == 'cashier' %}
+            <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;color:var(--muted)">
+                <div style="color:var(--green)">✅ POS Terminal</div>
+                <div style="color:var(--green)">✅ Payment Processing</div>
+                <div style="color:var(--green)">✅ View Orders</div>
+                <div style="color:var(--green)">✅ Dashboard (read-only)</div>
+                <div style="color:var(--border)">✗ Finance & Reports</div>
+                <div style="color:var(--border)">✗ Employee Management</div>
+                <div style="color:var(--border)">✗ Inventory Management</div>
+                <div style="color:var(--border)">✗ Security & Maintenance</div>
+            </div>
+            {% elif user_role == 'manager' %}
+            <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;color:var(--muted)">
+                <div style="color:var(--green)">✅ Dashboard & Reports</div>
+                <div style="color:var(--green)">✅ Shops & Inventory</div>
+                <div style="color:var(--green)">✅ Customers & Suppliers</div>
+                <div style="color:var(--green)">✅ Maintenance & Security</div>
+                <div style="color:var(--green)">✅ Marketing & Feedback</div>
+                <div style="color:var(--border)">✗ Finance Module</div>
+                <div style="color:var(--border)">✗ Employee Management</div>
+                <div style="color:var(--border)">✗ User Management</div>
+            </div>
+            {% else %}
+            <div style="font-size:13px;color:var(--green)">✅ Full access to all modules</div>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+{% endblock %}

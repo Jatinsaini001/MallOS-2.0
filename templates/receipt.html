@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Receipt {{ order.order_id }} — MallOS{% endblock %}
+{% block page_label %}Billing{% endblock %}
+{% block page_heading %}Receipt{% endblock %}
+
+{% block content %}
+<div style="max-width:640px;margin:0 auto">
+
+    <!-- Actions bar -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px">
+        <a href="{{ url_for('orders') }}" class="btn btn-secondary">← Orders</a>
+        <div style="display:flex;gap:8px">
+            <button class="btn btn-secondary" onclick="window.print()">🖨 Print</button>
+            <a href="{{ url_for('pos') }}" class="btn btn-primary">+ New Sale</a>
+        </div>
+    </div>
+
+    <!-- Receipt card -->
+    <div class="card" id="receipt-print">
+        <div style="padding:32px">
+
+            <!-- Header -->
+            <div style="text-align:center;border-bottom:1px dashed var(--border);padding-bottom:24px;margin-bottom:24px">
+                <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:var(--teal)">MallOS</div>
+                <div style="font-size:12px;color:var(--muted);margin-top:4px">Mall Management System</div>
+                <div style="font-size:11px;color:var(--muted);margin-top:2px">Official Receipt</div>
+            </div>
+
+            <!-- Order meta -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:24px;font-size:13px">
+                <div>
+                    <div style="color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px">Receipt No.</div>
+                    <div style="font-family:'Syne',sans-serif;font-weight:700">{{ order.order_id }}</div>
+                </div>
+                <div style="text-align:right">
+                    <div style="color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px">Date</div>
+                    <div>{{ order.created_at.strftime('%d %b %Y, %I:%M %p') if order.created_at else '—' }}</div>
+                </div>
+                <div>
+                    <div style="color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px">Customer</div>
+                    <div>{{ order.customer_name or 'Walk-in Customer' }}</div>
+                </div>
+                <div style="text-align:right">
+                    <div style="color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px">Payment</div>
+                    <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px">
+                        <span class="chip chip-blue" style="font-size:10px;padding:2px 7px">
+                            {{ order.payment_method | upper }}
+                        </span>
+                        {% if order.payment_status == 'paid' %}
+                        <span style="color:var(--green);font-size:11px;font-weight:600">✅ PAID</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Payment metadata (Razorpay) -->
+            {% if order.transaction_id %}
+            <div style="background:rgba(45,212,191,.06);border:1px solid rgba(45,212,191,.15);border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:12px">
+                <div style="color:var(--teal);font-weight:600;margin-bottom:6px">🔒 Verified Payment</div>
+                <div style="display:flex;justify-content:space-between;color:var(--muted)">
+                    <span>Transaction ID</span>
+                    <span style="font-family:monospace;color:var(--text)">{{ order.transaction_id }}</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;color:var(--muted);margin-top:4px">
+                    <span>Gateway</span>
+                    <span style="color:var(--text)">{{ order.gateway | title }}</span>
+                </div>
+                {% if order.payment_time %}
+                <div style="display:flex;justify-content:space-between;color:var(--muted);margin-top:4px">
+                    <span>Paid at</span>
+                    <span style="color:var(--text)">{{ order.payment_time.strftime('%d %b %Y, %I:%M %p') }}</span>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Items table -->
+            <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:20px">
+                <thead>
+                    <tr style="border-bottom:1px solid var(--border)">
+                        <th style="text-align:left;padding:8px 0;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px">Item</th>
+                        <th style="text-align:center;padding:8px 0;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px">Qty</th>
+                        <th style="text-align:right;padding:8px 0;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px">Price</th>
+                        <th style="text-align:right;padding:8px 0;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in order.items %}
+                    <tr style="border-bottom:1px solid rgba(255,255,255,.04)">
+                        <td style="padding:10px 0">
+                            <div style="font-weight:500">{{ item.product_name }}</div>
+                            {% if item.sku %}<div style="font-size:11px;color:var(--muted)">SKU: {{ item.sku }}</div>{% endif %}
+                        </td>
+                        <td style="text-align:center;padding:10px 0;color:var(--muted)">{{ item.qty }}</td>
+                        <td style="text-align:right;padding:10px 0;color:var(--muted)">₹{{ '{:,.2f}'.format(item.unit_price) }}</td>
+                        <td style="text-align:right;padding:10px 0;font-weight:600">₹{{ '{:,.2f}'.format(item.line_total) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <!-- Totals -->
+            <div style="border-top:1px dashed var(--border);padding-top:16px">
+                <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:6px">
+                    <span>Subtotal</span>
+                    <span>₹{{ '{:,.2f}'.format(order.subtotal) }}</span>
+                </div>
+                {% if order.discount_amt and order.discount_amt > 0 %}
+                <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--rose);margin-bottom:6px">
+                    <span>
+                        Discount
+                        {% if order.discount_type == 'percent' %} ({{ order.discount_value }}%){% endif %}
+                    </span>
+                    <span>− ₹{{ '{:,.2f}'.format(order.discount_amt) }}</span>
+                </div>
+                {% endif %}
+                <div style="display:flex;justify-content:space-between;font-size:18px;font-family:'Syne',sans-serif;font-weight:800;color:var(--teal);border-top:1px solid var(--border);padding-top:12px;margin-top:8px">
+                    <span>TOTAL</span>
+                    <span>₹{{ '{:,.2f}'.format(order.grand_total) }}</span>
+                </div>
+            </div>
+
+            <!-- Loyalty points -->
+            {% if order.points_earned and order.points_earned > 0 %}
+            <div style="background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.2);border-radius:8px;padding:10px 14px;margin-top:20px;font-size:12px;display:flex;align-items:center;justify-content:space-between">
+                <span style="color:var(--amber)">⭐ Loyalty Points Earned</span>
+                <span style="font-family:'Syne',sans-serif;font-weight:700;color:var(--amber)">+{{ order.points_earned }} pts</span>
+            </div>
+            {% endif %}
+
+            <!-- Footer -->
+            <div style="text-align:center;margin-top:28px;padding-top:20px;border-top:1px dashed var(--border);font-size:11px;color:var(--muted);line-height:1.8">
+                <div>Thank you for shopping with us!</div>
+                <div>Goods once sold will not be taken back.</div>
+                <div style="margin-top:8px;font-family:monospace;font-size:10px">{{ order.order_id }} · {{ order.created_at.strftime('%d/%m/%Y %H:%M') if order.created_at else '' }}</div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<style>
+@media print {
+    .sidebar, .topbar, .flash, .btn, a[href] { display: none !important; }
+    body, .main, .content { background: white !important; color: black !important; }
+    .card { border: 1px solid #ddd !important; box-shadow: none !important; }
+    #receipt-print { max-width: 100% !important; }
+}
+</style>
+{% endblock %}

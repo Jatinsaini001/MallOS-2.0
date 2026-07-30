@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Order {{ order.order_id }} — MallOS{% endblock %}
+{% block page_label %}Orders{% endblock %}
+{% block page_heading %}{{ order.order_id }}{% endblock %}
+{% block content %}
+<div style="max-width:700px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <a href="{{ url_for('orders') }}" class="card-link" style="font-size:14px">← Back to Orders</a>
+        <span class="status-chip status-{{ order.status }}" style="font-size:14px;padding:6px 16px">{{ order.status|upper }}</span>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+        <div class="card-header"><h2 class="card-title">Order Info</h2></div>
+        <div style="padding:20px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div><div class="form-label">Order ID</div><div style="font-weight:600;margin-top:4px">{{ order.order_id }}</div></div>
+            <div><div class="form-label">Customer</div><div style="margin-top:4px">{{ order.customer_name }}</div></div>
+            <div><div class="form-label">Payment Method</div><div style="margin-top:4px"><span class="chip chip-blue">{{ order.payment_method|upper }}</span></div></div>
+            <div><div class="form-label">Date</div><div style="margin-top:4px;color:var(--muted)">{{ order.created_at.strftime('%d %b %Y, %I:%M %p') if order.created_at else '—' }}</div></div>
+        </div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+        <div class="card-header"><h2 class="card-title">Items Purchased</h2></div>
+        <table class="table">
+            <thead><tr><th>#</th><th>Product</th><th>SKU</th><th>Unit Price</th><th>Qty</th><th>Total</th></tr></thead>
+            <tbody>
+            {% for item in order['items'] %}
+            <tr>
+                <td class="muted">{{ loop.index }}</td>
+                <td><strong>{{ item.product_name }}</strong></td>
+                <td class="muted">{{ item.sku or '—' }}</td>
+                <td class="muted">{{ item.unit_price | currency }}</td>
+                <td>{{ item.qty }}</td>
+                <td class="amount">{{ item.line_total | currency }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <div class="card-header"><h2 class="card-title">Payment Summary</h2></div>
+        <div style="padding:20px">
+            <div class="total-row" style="padding:8px 0;border-bottom:1px solid var(--border)"><span>Subtotal</span><span>{{ order.subtotal | currency }}</span></div>
+            {% if order.discount_amt %}
+            <div class="total-row" style="padding:8px 0;border-bottom:1px solid var(--border)">
+                <span>Discount ({{ order.discount_type }} {% if order.discount_type=='percent' %}{{ order.discount_value }}%{% else %}flat{% endif %})</span>
+                <span style="color:var(--rose)">-{{ order.discount_amt | currency }}</span>
+            </div>
+            {% endif %}
+            <div class="total-row total-final" style="padding:12px 0;margin-top:4px"><span>Grand Total</span><span>{{ order.grand_total | currency }}</span></div>
+        </div>
+    </div>
+</div>
+{% endblock %}

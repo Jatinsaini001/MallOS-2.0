@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Shops — MallOS{% endblock %}
+{% block page_label %}Management{% endblock %}
+{% block page_heading %}Shops{% endblock %}
+
+{% block content %}
+<div class="two-col-wide">
+
+    <!-- Add Shop Form -->
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">Add New Shop</h2>
+        </div>
+        <form method="POST" class="form-grid">
+            <div class="form-group">
+                <label class="form-label">Shop Name *</label>
+                <input type="text" name="shop_name" class="form-input" placeholder="e.g. Zara" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Tenant Name *</label>
+                <input type="text" name="tenant_name" class="form-input" placeholder="Owner/Company" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Floor *</label>
+                <select name="floor" class="form-input" required>
+                    <option value="">Select Floor</option>
+                    <option>Ground Floor</option>
+                    <option>1st Floor</option>
+                    <option>2nd Floor</option>
+                    <option>3rd Floor</option>
+                    <option>Basement</option>
+                    <option>Food Court</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Monthly Rent (₹) *</label>
+                <input type="number" name="rent" class="form-input" placeholder="50000" min="0" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Category</label>
+                <select name="category" class="form-input">
+                    <option value="">Select Category</option>
+                    <option>Fashion</option>
+                    <option>Food & Beverage</option>
+                    <option>Electronics</option>
+                    <option>Jewellery</option>
+                    <option>Beauty & Wellness</option>
+                    <option>Sports</option>
+                    <option>Books & Stationery</option>
+                    <option>Home & Decor</option>
+                    <option>Other</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Contact Number</label>
+                <input type="text" name="contact" class="form-input" placeholder="9XXXXXXXXX">
+            </div>
+            <div class="form-group form-full">
+                <button type="submit" class="btn btn-primary">+ Add Shop</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Shops List -->
+    <div class="card card-wide">
+        <div class="card-header">
+            <h2 class="card-title">All Shops <span class="count-pill">{{ shops | length }}</span></h2>
+            <form method="GET" class="search-form">
+                <input type="text" name="search" value="{{ search }}" class="search-input" placeholder="Search shops...">
+                <button type="submit" class="btn-search">🔍</button>
+            </form>
+        </div>
+
+        {% if shops %}
+        <div class="table-wrap">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Shop Name</th>
+                        <th>Tenant</th>
+                        <th>Floor</th>
+                        <th>Category</th>
+                        <th>Rent/mo</th>
+                        <th>Contact</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in shops %}
+                    <tr>
+                        <td class="muted">{{ loop.index }}</td>
+                        <td><strong>{{ s.shop_name }}</strong></td>
+                        <td>{{ s.tenant_name }}</td>
+                        <td><span class="chip chip-blue">{{ s.floor }}</span></td>
+                        <td>{{ s.category or '—' }}</td>
+                        <td class="amount">{{ s.rent | currency }}</td>
+                        <td class="muted">{{ s.contact or '—' }}</td>
+                        <td>
+                            <a href="{{ url_for('delete_shop', id=s._id) }}"
+                               class="btn-delete"
+                               onclick="return confirm('Delete this shop?')">Delete</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            {% if search %}No shops matching "{{ search }}".{% else %}No shops added yet.{% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

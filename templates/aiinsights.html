@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+{% block title %}AI Insights — MallOS{% endblock %}
+{% block page_label %}Growth{% endblock %}
+{% block page_heading %}AI Insights{% endblock %}
+{% block content %}
+
+<!-- Header banner -->
+<div class="ai-banner">
+    <div class="ai-banner-icon">🧠</div>
+    <div>
+        <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:16px">MallOS Intelligence Engine</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:2px">Analysing your data across all modules to surface actionable insights</div>
+    </div>
+    <div style="margin-left:auto;font-size:12px;color:var(--muted)">Last updated: just now</div>
+</div>
+
+<div class="insights-grid">
+
+    <!-- Sales Prediction -->
+    <div class="card insight-card">
+        <div class="insight-card-header insight-header-teal">
+            <span class="insight-icon">📈</span>
+            <h2 class="card-title" style="color:inherit">Sales Prediction</h2>
+        </div>
+        <div style="padding:20px">
+            <div class="prediction-box">
+                <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Next Month Forecast</div>
+                <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:var(--teal)">{{ predicted_next | currency }}</div>
+                <div style="margin-top:6px;font-size:13px">
+                    Trend:
+                    {% if trend == 'up' %}
+                        <span style="color:var(--green)">▲ Growing</span> (+{{ avg_growth | currency }}/month avg)
+                    {% elif trend == 'down' %}
+                        <span style="color:var(--rose)">▼ Declining</span> ({{ avg_growth | currency }}/month avg)
+                    {% else %}
+                        <span style="color:var(--muted)">→ Stable</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% if monthly_sales %}
+            <div style="margin-top:16px">
+                <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Historical Sales</div>
+                {% set max_rev = monthly_sales | map(attribute='revenue') | max %}
+                {% for m in monthly_sales %}
+                <div class="chart-bar-row">
+                    <span class="chart-label" style="width:60px">{{ m._id[5:] }}</span>
+                    <div class="chart-bar-track"><div class="chart-bar-fill bar-teal" style="width:{{ (m.revenue/max_rev*100)|int if max_rev else 0 }}%"></div></div>
+                    <span class="chart-val">{{ m.revenue | currency }}</span>
+                </div>
+                {% endfor %}
+                <div class="chart-bar-row" style="margin-top:8px;opacity:.6;border-top:1px dashed var(--border);padding-top:8px">
+                    <span class="chart-label" style="width:60px;color:var(--teal)">Next →</span>
+                    <div class="chart-bar-track"><div class="chart-bar-fill bar-teal" style="width:{{ [((predicted_next/max_rev*100)|int if max_rev else 50), 100]|min }}%;opacity:.4"></div></div>
+                    <span class="chart-val" style="color:var(--teal)">{{ predicted_next | currency }}</span>
+                </div>
+            </div>
+            {% else %}
+            <div class="empty-state" style="padding:20px 0">Not enough data for prediction yet. Record some sales first.</div>
+            {% endif %}
+
+            {% if trend == 'down' %}
+            <div class="insight-tip insight-tip-rose">💡 Revenue is declining. Consider running a promotion or loyalty campaign to boost sales.</div>
+            {% elif trend == 'up' %}
+            <div class="insight-tip insight-tip-green">✅ Revenue is growing consistently. Keep current strategies going.</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Inventory Alerts -->
+    <div class="card insight-card">
+        <div class="insight-card-header insight-header-amber">
+            <span class="insight-icon">📦</span>
+            <h2 class="card-title" style="color:inherit">Inventory Alerts</h2>
+        </div>
+        <div style="padding:20px">
+            {% if out_of_stock %}
+            <div class="insight-section">
+                <div class="insight-section-title" style="color:var(--rose)">🔴 Out of Stock ({{ out_of_stock|length }})</div>
+                {% for p in out_of_stock %}
+                <div class="insight-item">
+                    <span>{{ p.name }}</span>
+                    <span class="stock-badge stock-out">0 {{ p.unit }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if critical_stock %}
+            <div class="insight-section">
+                <div class="insight-section-title" style="color:var(--amber)">🟡 Critical (1-2 units left)</div>
+                {% for p in critical_stock %}
+                <div class="insight-item">
+                    <span>{{ p.name }}</span>
+                    <span class="stock-badge stock-low">{{ p.stock }} {{ p.unit }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if fast_movers %}
+            <div class="insight-section">
+                <div class="insight-section-title" style="color:var(--teal)">⚡ Fast Movers (restock soon)</div>
+                {% for p in fast_movers %}
+                <div class="insight-item">
+                    <span>{{ p._id }}</span>
+                    <span class="muted" style="font-size:12px">{{ p.qty }} sold</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if not out_of_stock and not critical_stock %}
+            <div class="insight-tip insight-tip-green">✅ All critical items are well stocked.</div>
+            {% else %}
+            <div class="insight-tip insight-tip-rose">💡 Restock the above items before they run out to avoid lost sales.</div>
+            {% endif %}
+
+            <a href="{{ url_for('inventory') }}" class="btn btn-primary" style="display:block;text-align:center;margin-top:16px;text-decoration:none">Go to Inventory →</a>
+        </div>
+    </div>
+
+    <!-- Customer Behaviour -->
+    <div class="card insight-card">
+        <div class="insight-card-header insight-header-purple">
+            <span class="insight-icon">👥</span>
+            <h2 class="card-title" style="color:inherit">Customer Behaviour</h2>
+        </div>
+        <div style="padding:20px">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+                <div class="insight-kpi">
+                    <div class="insight-kpi-val" style="color:var(--teal)">{{ avg_order_val | currency }}</div>
+                    <div class="insight-kpi-label">Avg Order Value</div>
+                </div>
+                <div class="insight-kpi">
+                    <div class="insight-kpi-val" style="color:var(--green)">{{ retention_rate }}%</div>
+                    <div class="insight-kpi-label">Retention Rate</div>
+                </div>
+                <div class="insight-kpi">
+                    <div class="insight-kpi-val" style="color:var(--amber)">{{ repeat_customers }}</div>
+                    <div class="insight-kpi-label">Repeat Customers</div>
+                </div>
+                <div class="insight-kpi">
+                    <div class="insight-kpi-val" style="color:var(--purple)">{{ total_customers }}</div>
+                    <div class="insight-kpi-label">Total Customers</div>
+                </div>
+            </div>
+
+            {% if tier_counts %}
+            <div class="insight-section">
+                <div class="insight-section-title">Loyalty Breakdown</div>
+                {% set tc_total = tier_counts.values()|sum %}
+                {% for tier, count in tier_counts.items() %}
+                <div class="chart-bar-row">
+                    <span class="chart-label">{{ tier }}</span>
+                    <div class="chart-bar-track"><div class="chart-bar-fill {% if tier=='Platinum' %}bar-purple{% elif tier=='Gold' %}bar-amber{% elif tier=='Silver' %}bar-muted{% else %}bar-orange{% endif %}" style="width:{{ (count/tc_total*100)|int if tc_total else 0 }}%"></div></div>
+                    <span class="chart-val">{{ count }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if dormant_customers %}
+            <div class="insight-section">
+                <div class="insight-section-title" style="color:var(--amber)">😴 Dormant Customers (visited once)</div>
+                {% for c in dormant_customers[:5] %}
+                <div class="insight-item">
+                    <span>{{ c.name }}</span>
+                    <span class="muted" style="font-size:12px">{{ c.points or 0 }} pts · {{ c.tier }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="insight-tip insight-tip-amber">💡 Send a targeted coupon to these {{ dormant_customers|length }} dormant customers to bring them back.</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Business Health -->
+    <div class="card insight-card">
+        <div class="insight-card-header insight-header-green">
+            <span class="insight-icon">💼</span>
+            <h2 class="card-title" style="color:inherit">Business Health</h2>
+        </div>
+        <div style="padding:20px">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+                <div class="insight-kpi">
+                    <div class="insight-kpi-val" style="color:var(--green)">{{ total_rev | currency }}</div>
+                    <div class="insight-kpi-label">Total Revenue</div>
+                </div>
+                <div class="insight-kpi">
+                    <div class="insight-kpi-val" style="color:var(--rose)">{{ total_exp | currency }}</div>
+                    <div class="insight-kpi-label">Total Expenses</div>
+                </div>
+                <div class="insight-kpi">
+                    <div class="insight-kpi-val" style="color:{% if margin >= 0 %}var(--teal){% else %}var(--rose){% endif %}">{{ margin }}%</div>
+                    <div class="insight-kpi-label">Profit Margin</div>
+                </div>
+                <div class="insight-kpi">
+                    <div class="insight-kpi-val" style="color:var(--rose)">{{ total_debt | currency }}</div>
+                    <div class="insight-kpi-label">Supplier Debt</div>
+                </div>
+            </div>
+
+            <!-- Health score -->
+            {% set score = 0 %}
+            {% if margin >= 20 %}{% set score = score + 25 %}{% elif margin >= 10 %}{% set score = score + 15 %}{% elif margin >= 0 %}{% set score = score + 5 %}{% endif %}
+            {% if open_incidents == 0 %}{% set score = score + 25 %}{% elif open_incidents <= 2 %}{% set score = score + 15 %}{% else %}{% set score = score + 5 %}{% endif %}
+            {% if open_maint == 0 %}{% set score = score + 25 %}{% elif open_maint <= 3 %}{% set score = score + 15 %}{% else %}{% set score = score + 5 %}{% endif %}
+            {% if total_debt == 0 %}{% set score = score + 25 %}{% elif total_debt < 50000 %}{% set score = score + 15 %}{% else %}{% set score = score + 5 %}{% endif %}
+
+            <div style="margin-bottom:16px">
+                <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+                    <span style="font-size:13px;font-weight:600">Overall Health Score</span>
+                    <span style="font-family:'Syne',sans-serif;font-weight:700;color:{% if score >= 75 %}var(--green){% elif score >= 50 %}var(--amber){% else %}var(--rose){% endif %}">{{ score }}/100</span>
+                </div>
+                <div style="background:var(--surface2);border-radius:6px;height:10px;overflow:hidden">
+                    <div style="height:100%;width:{{ score }}%;background:{% if score >= 75 %}var(--green){% elif score >= 50 %}var(--amber){% else %}var(--rose){% endif %};border-radius:6px;transition:width .8s ease"></div>
+                </div>
+                <div style="font-size:12px;color:var(--muted);margin-top:6px">
+                    {% if score >= 75 %}🟢 Excellent — Mall is operating smoothly
+                    {% elif score >= 50 %}🟡 Good — A few areas need attention
+                    {% else %}🔴 Needs Attention — Multiple issues require action{% endif %}
+                </div>
+            </div>
+
+            <div class="insight-section">
+                <div class="insight-section-title">Action Items</div>
+                {% if open_incidents > 0 %}<div class="insight-item"><span style="color:var(--rose)">⚠ {{ open_incidents }} open security incident(s)</span><a href="{{ url_for('security') }}" style="font-size:12px;color:var(--teal)">→ Fix</a></div>{% endif %}
+                {% if open_maint > 0 %}<div class="insight-item"><span style="color:var(--amber)">🔧 {{ open_maint }} maintenance request(s) pending</span><a href="{{ url_for('maintenance') }}" style="font-size:12px;color:var(--teal)">→ Fix</a></div>{% endif %}
+                {% if total_debt > 0 %}<div class="insight-item"><span style="color:var(--rose)">💸 {{ total_debt | currency }} outstanding to suppliers</span><a href="{{ url_for('suppliers') }}" style="font-size:12px;color:var(--teal)">→ Pay</a></div>{% endif %}
+                {% if margin < 10 %}<div class="insight-item"><span style="color:var(--amber)">📉 Low profit margin ({{ margin }}%) — review expenses</span><a href="{{ url_for('finance') }}" style="font-size:12px;color:var(--teal)">→ View</a></div>{% endif %}
+                {% if open_incidents == 0 and open_maint == 0 and total_debt == 0 and margin >= 10 %}
+                <div class="insight-tip insight-tip-green">✅ No critical action items. Great work!</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

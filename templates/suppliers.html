@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Suppliers — MallOS{% endblock %}
+{% block page_label %}People{% endblock %}
+{% block page_heading %}Suppliers{% endblock %}
+{% block content %}
+
+<div class="stats-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px">
+    <div class="stat-card accent-blue">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></div>
+        <div class="stat-data"><div class="stat-value">{{ total_suppliers }}</div><div class="stat-label">Total Suppliers</div></div>
+    </div>
+    <div class="stat-card accent-rose">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div>
+        <div class="stat-data"><div class="stat-value">{{ total_balance | currency }}</div><div class="stat-label">Outstanding Balance</div></div>
+    </div>
+    <div class="stat-card accent-amber">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
+        <div class="stat-data"><div class="stat-value">{{ avg_rating }}/5</div><div class="stat-label">Avg Rating</div></div>
+    </div>
+</div>
+
+<div class="two-col-wide">
+    <!-- Add Supplier -->
+    <div class="card">
+        <div class="card-header"><h2 class="card-title">Add Supplier</h2></div>
+        <form method="POST" class="form-grid">
+            <div class="form-group form-full"><label class="form-label">Company Name *</label><input type="text" name="name" class="form-input" required placeholder="e.g. Reliance Retail"></div>
+            <div class="form-group"><label class="form-label">Contact Person</label><input type="text" name="contact" class="form-input" placeholder="Name or Phone"></div>
+            <div class="form-group"><label class="form-label">Email</label><input type="email" name="email" class="form-input" placeholder="supplier@email.com"></div>
+            <div class="form-group"><label class="form-label">Category</label>
+                <select name="category" class="form-input">
+                    <option value="">Select</option>
+                    <option>Clothing</option><option>Electronics</option><option>Food & Beverage</option>
+                    <option>Jewellery</option><option>Cosmetics</option><option>Footwear</option>
+                    <option>Home & Decor</option><option>Accessories</option><option>Other</option>
+                </select>
+            </div>
+            <div class="form-group"><label class="form-label">Rating (1–5)</label>
+                <select name="rating" class="form-input">
+                    <option value="5">⭐⭐⭐⭐⭐ Excellent</option>
+                    <option value="4">⭐⭐⭐⭐ Good</option>
+                    <option value="3" selected>⭐⭐⭐ Average</option>
+                    <option value="2">⭐⭐ Poor</option>
+                    <option value="1">⭐ Very Poor</option>
+                </select>
+            </div>
+            <div class="form-group"><label class="form-label">Outstanding Balance (₹)</label><input type="number" name="outstanding" class="form-input" min="0" placeholder="0"></div>
+            <div class="form-group form-full"><label class="form-label">Address</label><input type="text" name="address" class="form-input" placeholder="City, State"></div>
+            <div class="form-group form-full"><label class="form-label">Notes</label><input type="text" name="notes" class="form-input" placeholder="Optional notes..."></div>
+            <div class="form-group form-full"><button type="submit" class="btn btn-primary">+ Add Supplier</button></div>
+        </form>
+    </div>
+
+    <!-- Suppliers List -->
+    <div class="card card-wide">
+        <div class="card-header">
+            <h2 class="card-title">All Suppliers <span class="count-pill">{{ suppliers|length }}</span></h2>
+            <form method="GET" class="search-form">
+                <input type="text" name="search" value="{{ search }}" class="search-input" placeholder="Search...">
+                <button type="submit" class="btn-search">🔍</button>
+            </form>
+        </div>
+        {% if suppliers %}
+        <div class="table-wrap">
+            <table class="table">
+                <thead><tr><th>#</th><th>Supplier</th><th>Category</th><th>Contact</th><th>Rating</th><th>Outstanding</th><th>Actions</th></tr></thead>
+                <tbody>
+                {% for s in suppliers %}
+                <tr>
+                    <td class="muted">{{ loop.index }}</td>
+                    <td><a href="{{ url_for('supplier_detail', id=s._id) }}" style="color:var(--text);font-weight:600">{{ s.name }}</a></td>
+                    <td>{{ s.category or '—' }}</td>
+                    <td class="muted">{{ s.contact or '—' }}</td>
+                    <td>
+                        <div class="star-display">
+                            {% for i in range(5) %}<span style="color:{% if i < s.rating|int %}var(--amber){% else %}var(--border){% endif %}">★</span>{% endfor %}
+                            <span class="muted" style="font-size:11px;margin-left:4px">{{ s.rating }}</span>
+                        </div>
+                    </td>
+                    <td>
+                        {% if s.outstanding > 0 %}
+                            <span style="color:var(--rose);font-weight:600">{{ s.outstanding | currency }}</span>
+                        {% else %}
+                            <span style="color:var(--green)">Cleared</span>
+                        {% endif %}
+                    </td>
+                    <td style="display:flex;gap:6px">
+                        <a href="{{ url_for('supplier_detail', id=s._id) }}" class="btn-edit">View</a>
+                        <a href="{{ url_for('delete_supplier', id=s._id) }}" class="btn-delete" onclick="return confirm('Delete supplier?')">Del</a>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">No suppliers added yet.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

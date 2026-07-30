@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Maintenance — MallOS{% endblock %}
+{% block page_label %}Operations{% endblock %}
+{% block page_heading %}Maintenance{% endblock %}
+{% block content %}
+
+<div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px">
+    <div class="stat-card accent-amber">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+        <div class="stat-data"><div class="stat-value">{{ open_count }}</div><div class="stat-label">Open</div></div>
+    </div>
+    <div class="stat-card accent-blue">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+        <div class="stat-data"><div class="stat-value">{{ inprog_count }}</div><div class="stat-label">In Progress</div></div>
+    </div>
+    <div class="stat-card accent-green">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <div class="stat-data"><div class="stat-value">{{ done_count }}</div><div class="stat-label">Resolved</div></div>
+    </div>
+    <div class="stat-card accent-rose">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg></div>
+        <div class="stat-data"><div class="stat-value">{{ critical_count }}</div><div class="stat-label">Critical</div></div>
+    </div>
+</div>
+
+<div class="two-col-wide">
+    <!-- New Request -->
+    <div class="card">
+        <div class="card-header"><h2 class="card-title">New Request</h2></div>
+        <form method="POST" class="form-grid">
+            <div class="form-group form-full"><label class="form-label">Issue Title *</label><input type="text" name="title" class="form-input" required placeholder="e.g. AC not working in Shop 12"></div>
+            <div class="form-group"><label class="form-label">Location *</label><input type="text" name="location" class="form-input" required placeholder="e.g. 1st Floor, Block A"></div>
+            <div class="form-group"><label class="form-label">Category *</label>
+                <select name="category" class="form-input" required>
+                    <option>Electrical</option><option>Plumbing</option><option>HVAC</option>
+                    <option>Elevator</option><option>Structural</option><option>IT/Network</option>
+                    <option>Cleaning</option><option>Fire Safety</option><option>Other</option>
+                </select>
+            </div>
+            <div class="form-group"><label class="form-label">Priority *</label>
+                <select name="priority" class="form-input" required>
+                    <option value="low">Low</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="high">High</option>
+                    <option value="critical">🔴 Critical</option>
+                </select>
+            </div>
+            <div class="form-group form-full"><label class="form-label">Description</label><input type="text" name="description" class="form-input" placeholder="Additional details..."></div>
+            <div class="form-group form-full"><label class="form-label">Assign Technician</label>
+                <select name="technician" class="form-input">
+                    <option value="">Unassigned</option>
+                    {% for t in technicians %}<option value="{{ t.name }}">{{ t.name }}</option>{% endfor %}
+                    <option value="External">External Contractor</option>
+                </select>
+            </div>
+            <div class="form-group form-full"><button type="submit" class="btn btn-primary">+ Submit Request</button></div>
+        </form>
+    </div>
+
+    <!-- Requests List -->
+    <div class="card card-wide">
+        <div class="card-header">
+            <h2 class="card-title">All Requests <span class="count-pill">{{ requests|length }}</span></h2>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <div class="filter-tabs">
+                    <a href="?status=all" class="filter-tab {% if status_filter=='all' %}active{% endif %}">All</a>
+                    <a href="?status=open" class="filter-tab {% if status_filter=='open' %}active{% endif %}">Open</a>
+                    <a href="?status=in_progress" class="filter-tab {% if status_filter=='in_progress' %}active{% endif %}">In Progress</a>
+                    <a href="?status=resolved" class="filter-tab {% if status_filter=='resolved' %}active{% endif %}">Resolved</a>
+                </div>
+                <div class="filter-tabs">
+                    <a href="?priority=all" class="filter-tab {% if priority_filter=='all' %}active{% endif %}">All</a>
+                    <a href="?priority=critical" class="filter-tab {% if priority_filter=='critical' %}active{% endif %}">Critical</a>
+                    <a href="?priority=high" class="filter-tab {% if priority_filter=='high' %}active{% endif %}">High</a>
+                </div>
+            </div>
+        </div>
+        {% if requests %}
+        <div class="table-wrap">
+            <table class="table">
+                <thead><tr><th>#</th><th>Issue</th><th>Location</th><th>Category</th><th>Priority</th><th>Technician</th><th>Status</th><th>Actions</th></tr></thead>
+                <tbody>
+                {% for r in requests %}
+                <tr>
+                    <td class="muted">{{ loop.index }}</td>
+                    <td><strong>{{ r.title }}</strong>{% if r.description %}<div class="muted" style="font-size:11px;margin-top:2px">{{ r.description[:50] }}{% if r.description|length > 50 %}...{% endif %}</div>{% endif %}</td>
+                    <td class="muted">{{ r.location }}</td>
+                    <td><span class="chip chip-blue">{{ r.category }}</span></td>
+                    <td><span class="priority-badge priority-{{ r.priority }}">{{ r.priority|upper }}</span></td>
+                    <td class="muted">{{ r.technician or 'Unassigned' }}</td>
+                    <td><span class="maint-status maint-{{ r.status }}">{{ r.status.replace('_',' ')|title }}</span></td>
+                    <td>
+                        <form method="POST" action="{{ url_for('update_maintenance', id=r._id) }}" style="display:flex;gap:4px;flex-wrap:wrap">
+                            <select name="status" class="form-input" style="padding:4px 6px;font-size:11px;width:auto">
+                                <option value="open" {% if r.status=='open' %}selected{% endif %}>Open</option>
+                                <option value="in_progress" {% if r.status=='in_progress' %}selected{% endif %}>In Progress</option>
+                                <option value="resolved" {% if r.status=='resolved' %}selected{% endif %}>Resolved</option>
+                            </select>
+                            <select name="technician" class="form-input" style="padding:4px 6px;font-size:11px;width:auto">
+                                <option value="">Unassigned</option>
+                                {% for t in technicians %}<option value="{{ t.name }}" {% if r.technician==t.name %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
+                                <option value="External" {% if r.technician=='External' %}selected{% endif %}>External</option>
+                            </select>
+                            <button type="submit" class="btn-edit">Save</button>
+                        </form>
+                        <a href="{{ url_for('delete_maintenance', id=r._id) }}" class="btn-delete" onclick="return confirm('Delete?')" style="margin-top:4px;display:inline-block">Del</a>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">No maintenance requests. All clear! ✅</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Inventory — MallOS{% endblock %}
+{% block page_label %}Retail{% endblock %}
+{% block page_heading %}Inventory{% endblock %}
+{% block content %}
+
+<div class="stats-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px">
+    <div class="stat-card accent-blue">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg></div>
+        <div class="stat-data"><div class="stat-value">{{ total_val | currency }}</div><div class="stat-label">Inventory Value</div></div>
+    </div>
+    <div class="stat-card accent-amber">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/></svg></div>
+        <div class="stat-data"><div class="stat-value">{{ low_count }}</div><div class="stat-label">Low Stock Items</div></div>
+    </div>
+    <div class="stat-card accent-rose">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div>
+        <div class="stat-data"><div class="stat-value">{{ out_count }}</div><div class="stat-label">Out of Stock</div></div>
+    </div>
+</div>
+
+<div class="two-col-wide">
+    <div class="card">
+        <div class="card-header"><h2 class="card-title">Add Product</h2></div>
+        <form method="POST" class="form-grid">
+            <div class="form-group"><label class="form-label">Product Name *</label><input type="text" name="name" class="form-input" required placeholder="e.g. Levis Jeans"></div>
+            <div class="form-group"><label class="form-label">SKU</label><input type="text" name="sku" class="form-input" placeholder="e.g. LEV-001"></div>
+            <div class="form-group"><label class="form-label">Category</label>
+                <select name="category" class="form-input">
+                    <option value="">Select</option>
+                    <option>Clothing</option><option>Electronics</option><option>Food & Beverage</option>
+                    <option>Jewellery</option><option>Cosmetics</option><option>Footwear</option>
+                    <option>Accessories</option><option>Sports</option><option>Home</option><option>Other</option>
+                </select>
+            </div>
+            <div class="form-group"><label class="form-label">Unit</label>
+                <select name="unit" class="form-input">
+                    <option value="pcs">Pieces</option><option value="kg">KG</option>
+                    <option value="ltr">Litre</option><option value="box">Box</option><option value="pair">Pair</option>
+                </select>
+            </div>
+            <div class="form-group"><label class="form-label">Selling Price (₹) *</label><input type="number" name="price" class="form-input" min="0" step="0.01" required placeholder="499"></div>
+            <div class="form-group"><label class="form-label">Cost Price (₹)</label><input type="number" name="cost" class="form-input" min="0" step="0.01" placeholder="300"></div>
+            <div class="form-group"><label class="form-label">Stock Qty *</label><input type="number" name="stock" class="form-input" min="0" required placeholder="50"></div>
+            <div class="form-group"><label class="form-label">Low Stock Alert</label><input type="number" name="low_stock_alert" class="form-input" min="0" value="5"></div>
+            <div class="form-group form-full"><button type="submit" class="btn btn-primary">+ Add Product</button></div>
+        </form>
+    </div>
+
+    <div class="card card-wide">
+        <div class="card-header">
+            <h2 class="card-title">Products <span class="count-pill">{{ products|length }}</span></h2>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                <div class="filter-tabs">
+                    <a href="?filter=all" class="filter-tab {% if filter=='all' %}active{% endif %}">All</a>
+                    <a href="?filter=low" class="filter-tab {% if filter=='low' %}active{% endif %}">Low Stock</a>
+                    <a href="?filter=out" class="filter-tab {% if filter=='out' %}active{% endif %}">Out</a>
+                </div>
+                <form method="GET" class="search-form">
+                    <input type="hidden" name="filter" value="{{ filter }}">
+                    <input type="text" name="search" value="{{ search }}" class="search-input" placeholder="Search...">
+                    <button type="submit" class="btn-search">🔍</button>
+                </form>
+            </div>
+        </div>
+        {% if products %}
+        <div class="table-wrap">
+            <table class="table">
+                <thead><tr><th>#</th><th>Product</th><th>SKU</th><th>Category</th><th>Price</th><th>Cost</th><th>Stock</th><th>Actions</th></tr></thead>
+                <tbody>
+                {% for p in products %}
+                <tr>
+                    <td class="muted">{{ loop.index }}</td>
+                    <td><strong>{{ p.name }}</strong></td>
+                    <td class="muted">{{ p.sku or '—' }}</td>
+                    <td>{{ p.category or '—' }}</td>
+                    <td class="amount">{{ p.price | currency }}</td>
+                    <td class="muted">{{ p.cost | currency }}</td>
+                    <td>
+                        {% set alert = p.get('low_stock_alert', 5) %}
+                        {% if p.stock == 0 %}
+                            <span class="stock-badge stock-out">Out</span>
+                        {% elif p.stock <= alert %}
+                            <span class="stock-badge stock-low">{{ p.stock }} {{ p.unit }}</span>
+                        {% else %}
+                            <span class="stock-badge stock-ok">{{ p.stock }} {{ p.unit }}</span>
+                        {% endif %}
+                    </td>
+                    <td style="display:flex;gap:6px">
+                        <a href="{{ url_for('edit_product', id=p._id) }}" class="btn-edit">Edit</a>
+                        <a href="{{ url_for('delete_product', id=p._id) }}" class="btn-delete" onclick="return confirm('Delete product?')">Del</a>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}<div class="empty-state">No products found.</div>{% endif %}
+    </div>
+</div>
+{% endblock %}

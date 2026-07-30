@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Employees — MallOS{% endblock %}
+{% block page_label %}Management{% endblock %}
+{% block page_heading %}Employees{% endblock %}
+
+{% block content %}
+<div class="two-col-wide">
+
+    <!-- Add Employee Form -->
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">Add New Employee</h2>
+        </div>
+        <form method="POST" class="form-grid">
+            <div class="form-group">
+                <label class="form-label">Full Name *</label>
+                <input type="text" name="name" class="form-input" placeholder="e.g. Rahul Sharma" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Role *</label>
+                <input type="text" name="role" class="form-input" placeholder="e.g. Security Guard" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Department *</label>
+                <select name="department" class="form-input" required>
+                    <option value="">Select Department</option>
+                    <option>Security</option>
+                    <option>Housekeeping</option>
+                    <option>Administration</option>
+                    <option>Technical</option>
+                    <option>Marketing</option>
+                    <option>Finance</option>
+                    <option>Operations</option>
+                    <option>Customer Service</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Monthly Salary (₹) *</label>
+                <input type="number" name="salary" class="form-input" placeholder="25000" min="0" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Contact Number</label>
+                <input type="text" name="contact" class="form-input" placeholder="9XXXXXXXXX">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Join Date</label>
+                <input type="date" name="join_date" class="form-input">
+            </div>
+            <div class="form-group form-full">
+                <button type="submit" class="btn btn-primary">+ Add Employee</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Employees List -->
+    <div class="card card-wide">
+        <div class="card-header">
+            <h2 class="card-title">All Employees <span class="count-pill">{{ employees | length }}</span></h2>
+            <form method="GET" class="search-form">
+                <input type="text" name="search" value="{{ search }}" class="search-input" placeholder="Search employees...">
+                <button type="submit" class="btn-search">🔍</button>
+            </form>
+        </div>
+
+        {% if employees %}
+        <div class="table-wrap">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Name</th>
+                        <th>Role</th>
+                        <th>Department</th>
+                        <th>Salary/mo</th>
+                        <th>Join Date</th>
+                        <th>Contact</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for e in employees %}
+                    <tr>
+                        <td class="muted">{{ loop.index }}</td>
+                        <td><strong>{{ e.name }}</strong></td>
+                        <td>{{ e.role or '—' }}</td>
+                        <td><span class="chip chip-amber">{{ e.department }}</span></td>
+                        <td class="amount">{{ e.salary | currency }}</td>
+                        <td class="muted">{{ e.join_date or '—' }}</td>
+                        <td class="muted">{{ e.contact or '—' }}</td>
+                        <td>
+                            <a href="{{ url_for('delete_employee', id=e._id) }}"
+                               class="btn-delete"
+                               onclick="return confirm('Delete this employee?')">Delete</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            {% if search %}No employees matching "{{ search }}".{% else %}No employees added yet.{% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

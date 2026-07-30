@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Edit Supplier — MallOS{% endblock %}
+{% block page_label %}Suppliers{% endblock %}
+{% block page_heading %}Edit Supplier{% endblock %}
+{% block content %}
+<div style="max-width:600px">
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">Edit: {{ supplier.name }}</h2>
+            <a href="{{ url_for('supplier_detail', id=supplier._id) }}" class="card-link">← Back</a>
+        </div>
+        <form method="POST" class="form-grid">
+            <div class="form-group form-full"><label class="form-label">Company Name *</label><input type="text" name="name" class="form-input" value="{{ supplier.name }}" required></div>
+            <div class="form-group"><label class="form-label">Contact</label><input type="text" name="contact" class="form-input" value="{{ supplier.contact or '' }}"></div>
+            <div class="form-group"><label class="form-label">Email</label><input type="email" name="email" class="form-input" value="{{ supplier.email or '' }}"></div>
+            <div class="form-group"><label class="form-label">Category</label>
+                <select name="category" class="form-input">
+                    {% for cat in ['Clothing','Electronics','Food & Beverage','Jewellery','Cosmetics','Footwear','Home & Decor','Accessories','Other'] %}
+                    <option {% if supplier.category == cat %}selected{% endif %}>{{ cat }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group"><label class="form-label">Rating</label>
+                <select name="rating" class="form-input">
+                    {% for r in [5,4,3,2,1] %}
+                    <option value="{{ r }}" {% if supplier.rating|int == r %}selected{% endif %}>{{ '★' * r }} ({{ r }}/5)</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group"><label class="form-label">Outstanding (₹)</label><input type="number" name="outstanding" class="form-input" value="{{ supplier.outstanding or 0 }}" min="0"></div>
+            <div class="form-group form-full"><label class="form-label">Address</label><input type="text" name="address" class="form-input" value="{{ supplier.address or '' }}"></div>
+            <div class="form-group form-full"><label class="form-label">Notes</label><input type="text" name="notes" class="form-input" value="{{ supplier.notes or '' }}"></div>
+            <div class="form-group form-full" style="display:flex;gap:10px">
+                <button type="submit" class="btn btn-primary" style="flex:1">Save Changes</button>
+                <a href="{{ url_for('supplier_detail', id=supplier._id) }}" class="btn btn-cancel" style="flex:1;text-align:center">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
