@@ -1,23 +1,143 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from datetime import datetime, timedelta
-from bson.ObjectId import ObjectId
+from bson import ObjectId
 import os
-import uuid
-import time
-import hmac
-import hashlib
+import random
+import string
+from pymongo import MongoClient
+from werkzeug.security import generate_password_hash, check_password_hash
+import functools
 
-# Assuming auth, helper functions, and MongoDB collections are imported/initialized from your database module
-# from auth import init_auth_db, verify_user, create_user, login_user, logout_user, is_logged_in, current_user, login_required, role_required, get_all_users, delete_user, update_password
-# from db import shops_col, employees_col, products_col, orders_col, customers_col, suppliers_col, expenses_col, maintenance_col, incidents_col, parking_col, cctv_col, events_col, foodcourt_col, cinema_col, campaigns_col, coupons_col, feedback_col, gen_order_id, fmt_currency
+# ─── 1. MongoDB Connection & Database Setup ──────────────────────────────────
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
+client = MongoClient(MONGO_URI)
+db = client.get_database("mallos")
 
+# Collections
+shops_col       = db["shops"]
+employees_col   = db["employees"]
+products_col    = db["products"]
+orders_col      = db["orders"]
+customers_col   = db["customers"]
+suppliers_col   = db["suppliers"]
+expenses_col    = db["expenses"]
+maintenance_col = db["maintenance"]
+incidents_col   = db["incidents"]
+parking_col     = db["parking"]
+cctv_col        = db["cctv"]
+events_col      = db["events"]
+foodcourt_col   = db["foodcourt"]
+cinema_col      = db["cinema"]
+campaigns_col   = db["campaigns"]
+coupons_col     = db["coupons"]
+feedback_col    = db["feedback"]
+users_col       = db["users"]
+
+# ─── 2. Helper Functions ──────────────────────────────────────────────────────
+def gen_order_id():
+    chars = string.ascii_uppercase + string.digits
+    return f"ORD-{''.join(random.choices(chars, k=6))}"
+
+def fmt_currency(amount):
+    try:
+        return f"₹{float(amount):,.2f}"
+    except (TypeError, ValueError):
+        return "₹0.00"
+
+# ─── 3. Authentication & User Management Helpers ──────────────────────────────
+def init_auth_db():
+    """Seeds a default admin user if no users exist in the database."""
+    if users_col.count_documents({}) == 0:
+        hashed_pw = generate_password_hash("admin123")
+        users_col.insert_one({
+            "username": "admin",
+            "password": hashed_pw,
+            "role": "admin",
+            "created_at": datetime.utcnow()
+        })
+
+def verify_user(username, password):
+    user = users_col.find_one({"username": username})
+    if user and check_password_hash(user["password"], password):
+        return user
+    return None
+
+def create_user(username, password, role="cashier"):
+    if users_col.find_one({"username": username}):
+        return False, "Username already exists."
+    hashed_pw = generate_password_hash(password)
+    users_col.insert_one({
+        "username": username,
+        "password": hashed_pw,
+        "role": role,
+        "created_at": datetime.utcnow()
+    })
+    return True, ""
+
+def login_user(user):
+    session['user_id'] = str(user['_id'])
+    session['username'] = user['username']
+    session['role'] = user['role']
+
+def logout_user():
+    session.clear()
+
+def is_logged_in():
+    return 'user_id' in session
+
+def current_user():
+    if not is_logged_in():
+        return None
+    user = users_col.find_one({"_id": ObjectId(session['user_id'])})
+    if user:
+        user['_id'] = str(user['_id'])
+    return user
+
+def login_required(f):
+    @functools.wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not is_logged_in():
+            flash('Please log in to access this page.', 'error')
+            return redirect(url_for('login', next=request.path))
+        return f(*args, **kwargs)
+    return decorated_function
+
+def role_required(*roles):
+    def decorator(f):
+        @functools.wraps(f)
+        def decorated_function(*args, **kwargs):
+            if not is_logged_in():
+                flash('Please log in to access this page.', 'error')
+                return redirect(url_for('login', next=request.path))
+            user_role = session.get('role')
+            if user_role not in roles:
+                flash('You do not have permission to access this page.', 'error')
+                return redirect(url_for('dashboard'))
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+def get_all_users():
+    users = list(users_col.find())
+    for u in users:
+        u['_id'] = str(u['_id'])
+    return users
+
+def delete_user(user_id):
+    users_col.delete_one({"_id": ObjectId(user_id)})
+
+def update_password(user_id, new_password):
+    hashed_pw = generate_password_hash(new_password)
+    users_col.update_one({"_id": ObjectId(user_id)}, {"$set": {"password": hashed_pw}})
+
+# ─── 4. Flask App Initialization ──────────────────────────────────────────────
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "mall_secret_2024")
 
-# ─── Session timeout ──────────────────────────────────────────────────────────
+# Session timeout configuration
 app.permanent_session_lifetime = timedelta(minutes=30)
 
-# Initialise users check/seeding on startup
+# Initialise users check/seeding on startup (safe to call here since helpers are defined above)
 init_auth_db()
 
 # Inject current_user into every template automatically
@@ -29,6 +149,7 @@ def inject_user():
 def make_session_permanent():
     session.permanent = True
 
+# ─── 5. App Routes ────────────────────────────────────────────────────────────
 @app.route('/')
 def index():
     if not is_logged_in():
@@ -1228,14 +1349,6 @@ def aiinsights():
         total_rev=total_rev, total_exp=total_exp, margin=margin,
         open_incidents=open_incidents, open_maint=open_maint, total_debt=total_debt
     )
-
-def _rzp():
-    key_id     = os.getenv("RAZORPAY_KEY_ID", "")
-    key_secret = os.getenv("RAZORPAY_KEY_SECRET", "")
-    if not key_id or not key_secret or key_id.startswith("REPLACE"):
-        raise ValueError("Razorpay keys not configured.")
-    import razorpay
-    return razorpay.Client(auth=(key_id, key_secret))
 
 @app.route('/razorpay/ping')
 @login_required
