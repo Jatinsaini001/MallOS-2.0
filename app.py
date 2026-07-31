@@ -88,10 +88,28 @@ def is_logged_in():
 def current_user():
     if not is_logged_in():
         return None
-    user = users_col.find_one({"_id": ObjectId(session['user_id'])})
-    if user:
-        user['_id'] = str(user['_id'])
-    return user
+    
+    user_id = session.get('user_id')
+    if not user_id:
+        return None
+
+    try:
+        if isinstance(user_id, ObjectId):
+            query_id = user_id
+        elif isinstance(user_id, str) and ObjectId.is_valid(user_id):
+            query_id = ObjectId(user_id)
+        else:
+            user = users_col.find_one({"$or": [{"_id": user_id}, {"id": user_id}]})
+            if user:
+                user['_id'] = str(user['_id'])
+            return user
+
+        user = users_col.find_one({"_id": query_id})
+        if user:
+            user['_id'] = str(user['_id'])
+        return user
+    except Exception:
+        return None
 
 def login_required(f):
     @functools.wraps(f)
@@ -137,7 +155,10 @@ app.secret_key = os.getenv("SECRET_KEY", "mall_secret_2024")
 # Session timeout configuration
 app.permanent_session_lifetime = timedelta(minutes=30)
 
-# Initialise users check/seeding on startup (safe to call here since helpers are defined above)
+# Register custom Jinja currency filter
+app.jinja_env.filters['currency'] = fmt_currency
+
+# Initialise users check/seeding on startup
 init_auth_db()
 
 # Inject current_user into every template automatically
@@ -152,9 +173,9 @@ def make_session_permanent():
 # ─── 5. App Routes ────────────────────────────────────────────────────────────
 @app.route('/')
 def index():
-    if not is_logged_in():
-        return redirect(url_for('login'))
-    return redirect(url_for('dashboard'))
+    if is_logged_in():
+        return redirect(url_for('dashboard'))
+    return render_template('landing.html')
 
 @app.route('/dashboard')
 @login_required
@@ -782,7 +803,8 @@ def finance():
     return render_template('finance.html',
         expenses=expenses, total_expense=total_expense,
         total_income=total_income, profit=profit,
-        cat_agg=cat_agg, monthly_exp=monthly_exp
+        cat_agg=cat_agg, monthly_exp=monthly_exp,
+        now=datetime.utcnow()
     )
 
 @app.route('/finance/delete/<id>')
@@ -1476,6 +1498,487 @@ def manage_users():
 
     users = get_all_users()
     return render_template('users.html', users=users)
+
+
+import io, hmac, hashlib, uuid, time
+import os as _os
+
+payments_store = {}
+
+def _rzp():
+    key_id     = os.getenv("RAZORPAY_KEY_ID", "")
+    key_secret = os.getenv("RAZORPAY_KEY_SECRET", "")
+    if not key_id or not key_secret:
+        raise ValueError("Razorpay keys not configured in .env")
+    import razorpay
+    return razorpay.Client(auth=(key_id, key_secret))
+
+def generate_qr(payment_id, amount):
+    qr_dir  = os.path.join(app.static_folder, 'qr')
+    os.makedirs(qr_dir, exist_ok=True)
+    data    = f"upi://pay?pa=test@razorpay&pn=MallOS&am={amount}&cu=INR&tn=Order-{payment_id}"
+    try:
+        import qrcode
+        img = qrcode.make(data)
+        img.save(os.path.join(qr_dir, f"{payment_id}.png"))
+        return True, f"qr/{payment_id}.png"
+    except Exception:
+        return False, None
+
+@app.route('/razorpay/create-order', methods=['POST'])
+@login_required
+def razorpay_create_order():
+    data   = request.get_json() or {}
+    amount = float(data.get('amount', 0))
+    cart   = data.get('cart', [])
+    if amount <= 0:
+        return jsonify({"success": False, "message": "Invalid amount"}), 400
+    if not cart:
+        return jsonify({"success": False, "message": "Cart is empty"}), 400
+    try:
+        client    = _rzp()
+        rzp_order = client.order.create({
+            "amount":          int(amount * 100),
+            "currency":        "INR",
+            "receipt":         f"rcpt_{str(uuid.uuid4())[:10]}",
+            "payment_capture": 1
+        })
+    except ValueError as e:
+        return jsonify({"success": False, "message": str(e)}), 503
+    except Exception as e:
+        app.logger.error(f"Razorpay create order error: {e}")
+        return jsonify({"success": False, "message": "Payment gateway error"}), 502
+    ok, qr_url = generate_qr(rzp_order["id"], amount)
+    payments_store[rzp_order["id"]] = {
+        "amount": amount, "status": "pending",
+        "expiry": time.time() + 600,
+        "cart":   cart, "qr_url": qr_url,
+    }
+    return jsonify({
+        "success":             True,
+        "razorpay_order_id":   rzp_order["id"],
+        "amount":              int(amount * 100),
+        "currency":            "INR",
+        "key_id":              os.getenv("RAZORPAY_KEY_ID", ""),
+        "payment_id":          rzp_order["id"],
+    })
+
+@app.route('/razorpay/verify-payment', methods=['POST'])
+@login_required
+def razorpay_verify_payment():
+    data           = request.get_json() or {}
+    rzp_order_id   = data.get("razorpay_order_id", "")
+    rzp_payment_id = data.get("razorpay_payment_id", "")
+    rzp_signature  = data.get("razorpay_signature", "")
+    if not all([rzp_order_id, rzp_payment_id, rzp_signature]):
+        return jsonify({"success": False, "message": "Missing payment fields"}), 400
+    pending = payments_store.get(rzp_order_id)
+    if not pending:
+        return jsonify({"success": False, "message": "Order not found or expired"}), 404
+    if pending["status"] == "paid":
+        return jsonify({"success": True, "order_id": pending.get("order_id")}), 200
+    key_secret = os.getenv("RAZORPAY_KEY_SECRET", "")
+    body       = f"{rzp_order_id}|{rzp_payment_id}"
+    expected   = hmac.new(key_secret.encode(), body.encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, rzp_signature):
+        return jsonify({"success": False, "message": "Payment verification failed"}), 400
+    cart_data      = data.get("cart_data", {})
+    cart_raw       = pending["cart"]
+    discount_type  = cart_data.get("discount_type",  "none")
+    discount_value = float(cart_data.get("discount_value", 0))
+    customer_name  = (cart_data.get("customer_name", "Walk-in Customer") or "Walk-in Customer").strip()
+    customer_id    = cart_data.get("customer_id", "")
+    frontend_method = cart_data.get("payment_method", "razorpay")
+    pay_label      = "card" if frontend_method == "card" else "upi"
+    line_items = []
+    subtotal   = 0.0
+    for item in cart_raw:
+        try:
+            product = products_col.find_one({"_id": ObjectId(item['product_id'])})
+        except Exception:
+            continue
+        if not product:
+            continue
+        qty        = int(item.get('qty', 1))
+        line_total = product['price'] * qty
+        subtotal  += line_total
+        line_items.append({
+            "product_id":   str(product['_id']),
+            "product_name": product['name'],
+            "sku":          product.get('sku', ''),
+            "qty":          qty,
+            "unit_price":   product['price'],
+            "line_total":   line_total,
+        })
+        products_col.update_one({"_id": ObjectId(item['product_id'])}, {"$inc": {"stock": -qty}})
+    discount_amt = 0.0
+    if discount_type == "percent":
+        discount_amt = round(subtotal * discount_value / 100, 2)
+    elif discount_type == "flat":
+        discount_amt = min(discount_value, subtotal)
+    grand_total   = round(subtotal - discount_amt, 2)
+    points_earned = int(grand_total // 10)
+    order_doc = {
+        "order_id":       gen_order_id(),
+        "customer_name":  customer_name,
+        "items":          line_items,
+        "subtotal":       subtotal,
+        "discount_type":  discount_type,
+        "discount_value": discount_value,
+        "discount_amt":   discount_amt,
+        "grand_total":    grand_total,
+        "payment_method": pay_label,
+        "payment_status": "paid",
+        "transaction_id": rzp_payment_id,
+        "gateway":        "razorpay",
+        "payment_time":   datetime.utcnow(),
+        "status":         "completed",
+        "customer_id":    customer_id,
+        "points_earned":  points_earned,
+        "created_at":     datetime.utcnow(),
+    }
+    orders_col.insert_one(order_doc)
+    if customer_id:
+        try:
+            customer = customers_col.find_one({"_id": ObjectId(customer_id)})
+            if customer:
+                new_points = customer.get('points', 0) + points_earned
+                customers_col.update_one({"_id": ObjectId(customer_id)}, {"$set": {
+                    "points":      new_points,
+                    "tier":        get_tier(new_points),
+                    "total_spent": round(customer.get('total_spent', 0) + grand_total, 2),
+                    "visit_count": customer.get('visit_count', 0) + 1,
+                    "last_visit":  datetime.utcnow(),
+                }})
+        except Exception:
+            pass
+    payments_store[rzp_order_id].update({
+        "status":   "paid",
+        "order_id": order_doc["order_id"],
+    })
+    return jsonify({
+        "success":      True,
+        "order_id":     order_doc["order_id"],
+        "grand_total":  grand_total,
+        "receipt_url":  f"/receipt/{order_doc['order_id']}",
+        "message":      f"Payment verified! {order_doc['order_id']}",
+    })
+
+@app.route('/razorpay/webhook', methods=['POST'])
+def razorpay_webhook():
+    webhook_secret = os.getenv("RAZORPAY_WEBHOOK_SECRET", "")
+    received_sig   = request.headers.get("X-Razorpay-Signature", "")
+    body           = request.get_data()
+    if webhook_secret:
+        expected = hmac.new(webhook_secret.encode(), body, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected, received_sig):
+            return jsonify({"status": "invalid signature"}), 400
+    event = request.get_json(silent=True) or {}
+    if event.get("event") == "payment.captured":
+        payload      = event.get("payload", {}).get("payment", {}).get("entity", {})
+        rzp_order_id = payload.get("order_id", "")
+        if rzp_order_id in payments_store:
+            payments_store[rzp_order_id]["status"] = "paid"
+    return jsonify({"status": "ok"}), 200
+
+@app.route('/create-payment', methods=['POST'])
+@login_required
+def create_payment():
+    data       = request.get_json() or {}
+    amount     = float(data.get('amount', 0))
+    cart       = data.get('cart', [])
+    payment_id = str(uuid.uuid4())[:12].upper()
+    ok, qr_url = generate_qr(payment_id, amount)
+    payments_store[payment_id] = {
+        "amount": amount, "status": "pending",
+        "expiry": time.time() + 600,
+        "cart":   cart, "qr_url": qr_url,
+    }
+    return jsonify({"success": True, "payment_id": payment_id})
+
+@app.route('/payment/<payment_id>')
+@login_required
+def payment_page(payment_id):
+    p = payments_store.get(payment_id)
+    if not p:
+        flash("Payment not found or expired.", 'error')
+        return redirect(url_for('pos'))
+    remaining = max(0, int(p['expiry'] - time.time()))
+    if remaining <= 0 and p['status'] == 'pending':
+        payments_store[payment_id]['status'] = 'expired'
+        p['status'] = 'expired'
+    return render_template('payment.html',
+        payment_id=payment_id, amount=p['amount'],
+        status=p['status'], qr_url=p.get('qr_url'),
+        remaining=remaining, expired=(remaining <= 0),
+        razorpay_key=os.getenv("RAZORPAY_KEY_ID", ""),
+    )
+
+@app.route('/payment/<payment_id>/mark-paid', methods=['POST'])
+@login_required
+def mark_paid(payment_id):
+    p = payments_store.get(payment_id)
+    if not p:
+        return jsonify({"success": False, "message": "Payment not found"}), 404
+    if time.time() > p['expiry']:
+        payments_store[payment_id]['status'] = 'expired'
+        return jsonify({"success": False, "message": "Payment expired"}), 400
+    if p['status'] == 'paid':
+        return jsonify({"success": True, "status": "paid"})
+    payments_store[payment_id]['status'] = 'paid'
+    cart_raw       = p.get('cart', [])
+    data_extra     = request.get_json(silent=True) or {}
+    discount_type  = data_extra.get('discount_type', 'none')
+    discount_value = float(data_extra.get('discount_value', 0))
+    customer_name  = (data_extra.get('customer_name', 'Walk-in Customer') or 'Walk-in Customer').strip()
+    customer_id    = data_extra.get('customer_id', '')
+    line_items = []
+    subtotal   = 0.0
+    for item in cart_raw:
+        try:
+            product = products_col.find_one({"_id": ObjectId(item['product_id'])})
+        except Exception:
+            continue
+        if not product:
+            continue
+        qty        = int(item.get('qty', 1))
+        line_total = product['price'] * qty
+        subtotal  += line_total
+        line_items.append({
+            "product_id": str(product['_id']), "product_name": product['name'],
+            "sku": product.get('sku', ''), "qty": qty,
+            "unit_price": product['price'], "line_total": line_total,
+        })
+        products_col.update_one({"_id": ObjectId(item['product_id'])}, {"$inc": {"stock": -qty}})
+    discount_amt = 0.0
+    if discount_type == 'percent':
+        discount_amt = round(subtotal * discount_value / 100, 2)
+    elif discount_type == 'flat':
+        discount_amt = min(discount_value, subtotal)
+    grand_total   = round(subtotal - discount_amt, 2) if line_items else p['amount']
+    points_earned = int(grand_total // 10)
+    order_doc = {
+        "order_id": gen_order_id(), "customer_name": customer_name,
+        "items": line_items, "subtotal": subtotal,
+        "discount_type": discount_type, "discount_value": discount_value,
+        "discount_amt": discount_amt, "grand_total": grand_total,
+        "payment_method": "upi", "payment_status": "paid",
+        "transaction_id": f"UPI-{payment_id}",
+        "gateway": "upi", "payment_time": datetime.utcnow(),
+        "status": "completed", "customer_id": customer_id,
+        "points_earned": points_earned, "created_at": datetime.utcnow(),
+    }
+    orders_col.insert_one(order_doc)
+    payments_store[payment_id]['order_id'] = order_doc['order_id']
+    return jsonify({
+        "success": True, "status": "paid",
+        "order_id": order_doc['order_id'],
+        "receipt_url": f"/receipt/{order_doc['order_id']}",
+    })
+
+@app.route('/payment/<payment_id>/status')
+@login_required
+def payment_status_check(payment_id):
+    p = payments_store.get(payment_id)
+    if not p:
+        return jsonify({"status": "not_found"})
+    remaining = max(0, int(p['expiry'] - time.time()))
+    if remaining <= 0 and p['status'] == 'pending':
+        payments_store[payment_id]['status'] = 'expired'
+    return jsonify({"status": payments_store[payment_id]['status'], "remaining": remaining})
+
+@app.route('/export/orders/excel')
+@login_required
+def export_orders_excel():
+    import pandas as pd
+    orders_list = list(orders_col.find().sort("created_at", -1))
+    rows = []
+    for o in orders_list:
+        created = o.get('created_at')
+        rows.append({
+            "Order ID":       o.get('order_id', str(o['_id'])),
+            "Customer":       o.get('customer_name', 'Walk-in'),
+            "Items":          len(o.get('items', [])),
+            "Subtotal":       o.get('subtotal', 0),
+            "Discount":       o.get('discount_amt', 0),
+            "Grand Total":    o.get('grand_total', 0),
+            "Payment Method": o.get('payment_method', ''),
+            "Status":         o.get('status', ''),
+            "Date":           created.strftime('%Y-%m-%d %H:%M') if hasattr(created, 'strftime') else str(created or ''),
+        })
+    df  = pd.DataFrame(rows)
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Orders')
+    buf.seek(0)
+    from flask import send_file
+    return send_file(buf, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                     as_attachment=True, download_name='orders.xlsx')
+
+@app.route('/export/orders/pdf')
+@login_required
+def export_orders_pdf():
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
+    from reportlab.lib.styles import getSampleStyleSheet
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=20, rightMargin=20, topMargin=30, bottomMargin=20)
+    styles = getSampleStyleSheet()
+    orders_list = list(orders_col.find().sort("created_at", -1).limit(200))
+    data = [["Order ID", "Customer", "Total", "Payment", "Status", "Date"]]
+    for o in orders_list:
+        created = o.get('created_at')
+        data.append([
+            o.get('order_id', str(o['_id'])[:8]),
+            (o.get('customer_name') or 'Walk-in')[:20],
+            f"Rs.{o.get('grand_total', 0):,.2f}",
+            o.get('payment_method', ''),
+            o.get('status', ''),
+            created.strftime('%Y-%m-%d') if hasattr(created, 'strftime') else str(created or ''),
+        ])
+    table = Table(data, repeatRows=1)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a1e27')),
+        ('TEXTCOLOR',  (0, 0), (-1, 0), colors.white),
+        ('FONTSIZE',   (0, 0), (-1, 0), 9),
+        ('FONTSIZE',   (0, 1), (-1, -1), 8),
+        ('GRID',       (0, 0), (-1, -1), 0.5, colors.grey),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f8f8')]),
+        ('ALIGN',      (0, 0), (-1, -1), 'LEFT'),
+        ('VALIGN',     (0, 0), (-1, -1), 'MIDDLE'),
+        ('PADDING',    (0, 0), (-1, -1), 6),
+    ]))
+    doc.build([Paragraph("Orders Report — MallOS", styles['h2']), table])
+    buf.seek(0)
+    from flask import send_file
+    return send_file(buf, mimetype='application/pdf', as_attachment=True, download_name='orders.pdf')
+
+@app.route('/export/customers/excel')
+@login_required
+def export_customers_excel():
+    import pandas as pd
+    customers_list = list(customers_col.find().sort("points", -1))
+    rows = []
+    for c in customers_list:
+        created = c.get('created_at')
+        rows.append({
+            "Name":         c.get('name', ''),
+            "Phone":        c.get('phone', ''),
+            "Email":        c.get('email', ''),
+            "Tier":         c.get('tier', 'Bronze'),
+            "Points":       c.get('points', 0),
+            "Total Spent":  c.get('total_spent', 0),
+            "Visits":       c.get('visit_count', 0),
+            "Registered":   created.strftime('%Y-%m-%d') if hasattr(created, 'strftime') else str(created or ''),
+        })
+    df  = pd.DataFrame(rows)
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Customers')
+    buf.seek(0)
+    from flask import send_file
+    return send_file(buf, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                     as_attachment=True, download_name='customers.xlsx')
+
+@app.route('/export/customers/pdf')
+@login_required
+def export_customers_pdf():
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
+    from reportlab.lib.styles import getSampleStyleSheet
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=20, rightMargin=20, topMargin=30, bottomMargin=20)
+    styles = getSampleStyleSheet()
+    customers_list = list(customers_col.find().sort("points", -1).limit(200))
+    data = [["Name", "Phone", "Tier", "Points", "Total Spent", "Visits"]]
+    for c in customers_list:
+        data.append([
+            (c.get('name') or '')[:25],
+            c.get('phone', ''),
+            c.get('tier', 'Bronze'),
+            c.get('points', 0),
+            f"Rs.{c.get('total_spent', 0):,.2f}",
+            c.get('visit_count', 0),
+        ])
+    table = Table(data, repeatRows=1)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a1e27')),
+        ('TEXTCOLOR',  (0, 0), (-1, 0), colors.white),
+        ('FONTSIZE',   (0, 0), (-1, 0), 9),
+        ('FONTSIZE',   (0, 1), (-1, -1), 8),
+        ('GRID',       (0, 0), (-1, -1), 0.5, colors.grey),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f8f8')]),
+        ('ALIGN',      (0, 0), (-1, -1), 'LEFT'),
+        ('VALIGN',     (0, 0), (-1, -1), 'MIDDLE'),
+        ('PADDING',    (0, 0), (-1, -1), 6),
+    ]))
+    doc.build([Paragraph("Customers Report — MallOS", styles['h2']), table])
+    buf.seek(0)
+    from flask import send_file
+    return send_file(buf, mimetype='application/pdf', as_attachment=True, download_name='customers.pdf')
+
+@app.route('/export/expenses/excel')
+@login_required
+def export_expenses_excel():
+    import pandas as pd
+    expenses_list = list(expenses_col.find().sort("date", -1))
+    rows = []
+    for e in expenses_list:
+        rows.append({
+            "Title":    e.get('title', ''),
+            "Category": e.get('category', ''),
+            "Amount":   e.get('amount', 0),
+            "Paid To":  e.get('paid_to', ''),
+            "Date":     e.get('date', ''),
+            "Note":     e.get('note', ''),
+        })
+    df  = pd.DataFrame(rows)
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Expenses')
+    buf.seek(0)
+    from flask import send_file
+    return send_file(buf, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                     as_attachment=True, download_name='expenses.xlsx')
+
+@app.route('/export/expenses/pdf')
+@login_required
+def export_expenses_pdf():
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
+    from reportlab.lib.styles import getSampleStyleSheet
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=20, rightMargin=20, topMargin=30, bottomMargin=20)
+    styles = getSampleStyleSheet()
+    expenses_list = list(expenses_col.find().sort("date", -1).limit(200))
+    data = [["Title", "Category", "Amount", "Paid To", "Date"]]
+    for e in expenses_list:
+        data.append([
+            (e.get('title') or '')[:30],
+            e.get('category', ''),
+            f"Rs.{e.get('amount', 0):,.2f}",
+            (e.get('paid_to') or '')[:20],
+            e.get('date', ''),
+        ])
+    table = Table(data, repeatRows=1)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a1e27')),
+        ('TEXTCOLOR',  (0, 0), (-1, 0), colors.white),
+        ('FONTSIZE',   (0, 0), (-1, 0), 9),
+        ('FONTSIZE',   (0, 1), (-1, -1), 8),
+        ('GRID',       (0, 0), (-1, -1), 0.5, colors.grey),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f8f8')]),
+        ('ALIGN',      (0, 0), (-1, -1), 'LEFT'),
+        ('VALIGN',     (0, 0), (-1, -1), 'MIDDLE'),
+        ('PADDING',    (0, 0), (-1, -1), 6),
+    ]))
+    doc.build([Paragraph("Expenses Report — MallOS", styles['h2']), table])
+    buf.seek(0)
+    from flask import send_file
+    return send_file(buf, mimetype='application/pdf', as_attachment=True, download_name='expenses.pdf')
 
 if __name__ == '__main__':
     app.run(debug=True)

@@ -68,7 +68,7 @@
                 {% if order.payment_time %}
                 <div style="display:flex;justify-content:space-between;color:var(--muted);margin-top:4px">
                     <span>Paid at</span>
-                    <span style="color:var(--text)">{{ order.payment_time.strftime('%d %b %Y, %I:%M %p') }}</span>
+                    <span style="color:var(--text)">{{ order.payment_time.strftime('%d %b %Y, %I:%M %p') if order.payment_time and order.payment_time is not string else (order.payment_time or '—') }}</span>
                 </div>
                 {% endif %}
             </div>
