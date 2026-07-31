@@ -7,11 +7,15 @@ import string
 from pymongo import MongoClient
 from werkzeug.security import generate_password_hash, check_password_hash
 import functools
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ─── 1. MongoDB Connection & Database Setup ──────────────────────────────────
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
+DB_NAME   = os.getenv("DB_NAME", "mall_management")
 client = MongoClient(MONGO_URI)
-db = client.get_database("mallos")
+db = client.get_database(DB_NAME)
 
 # Collections
 shops_col       = db["shops"]
@@ -139,6 +143,7 @@ def get_all_users():
     users = list(users_col.find())
     for u in users:
         u['_id'] = str(u['_id'])
+        u['id']  = u['_id']   # template uses u.id
     return users
 
 def delete_user(user_id):
@@ -280,6 +285,9 @@ def shops():
 @app.route('/shops/delete/<shop_id>')
 @role_required('admin', 'manager')
 def delete_shop(shop_id):
+    if not ObjectId.is_valid(shop_id):
+        flash('Invalid shop ID.', 'error')
+        return redirect(url_for('shops'))
     shops_col.delete_one({"_id": ObjectId(shop_id)})
     flash('Shop removed.', 'info')
     return redirect(url_for('shops'))
@@ -1478,17 +1486,21 @@ def manage_users():
                     flash(err, 'error')
 
         elif action == 'delete':
-            user_id = request.form.get('user_id', '')
-            if user_id == str(session.get('user_id')):
+            user_id = request.form.get('user_id', '').strip()
+            if not user_id or not ObjectId.is_valid(user_id):
+                flash('Invalid user selected.', 'error')
+            elif user_id == str(session.get('user_id')):
                 flash("You cannot delete your own account.", 'error')
             else:
                 delete_user(user_id)
                 flash('User deleted.', 'info')
 
         elif action == 'change_password':
-            user_id      = request.form.get('user_id', '')
+            user_id      = request.form.get('user_id', '').strip()
             new_password = request.form.get('new_password', '').strip()
-            if not new_password:
+            if not user_id or not ObjectId.is_valid(user_id):
+                flash('Invalid user selected.', 'error')
+            elif not new_password:
                 flash('New password cannot be empty.', 'error')
             else:
                 update_password(user_id, new_password)

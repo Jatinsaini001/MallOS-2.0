@@ -97,7 +97,7 @@
                         <td class="amount">{{ s.rent | currency }}</td>
                         <td class="muted">{{ s.contact or '—' }}</td>
                         <td>
-                            <a href="{{ url_for('delete_shop', id=s._id) }}"
+                            <a href="{{ url_for('delete_shop', shop_id=s._id|string) }}"
                                class="btn-delete"
                                onclick="return confirm('Delete this shop?')">Delete</a>
                         </td>
