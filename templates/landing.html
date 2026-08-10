@@ -1,19 +1,37 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MallOS — Retail Management Platform</title>
-  <meta name="description" content="MallOS is the premier all-in-one retail management platform engineered for modern commercial spaces. AI Insights, POS, Inventory, and more." />
+
+  <!-- Google Search Console Verification Meta Tag -->
+  <meta name="google-site-verification" content="mtz1WsrtGD54axPH5RIYpkAnMflGUAEQ3exoONGLAhM" />
+
+  <!-- SEO Meta Tags -->
+  <meta name="description"
+    content="MallOS is the premier all-in-one retail management platform engineered for modern commercial spaces. AI Insights, POS, Inventory, and more." />
+  <meta name="keywords"
+    content="MallOS, Retail Management Platform, Inventory Software, Store Management System, Jatin Saini" />
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap"
+    rel="stylesheet" />
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
     :root {
       --bg: #0f1219;
       --surface: #1a1e27;
-      --border: rgba(255,255,255,0.07);
+      --border: rgba(255, 255, 255, 0.07);
       --text: #d1d5db;
       --muted: #6b7280;
       --white: #ffffff;
@@ -22,7 +40,9 @@
       --radius: 16px;
     }
 
-    html { scroll-behavior: smooth; }
+    html {
+      scroll-behavior: smooth;
+    }
 
     body {
       font-family: 'DM Sans', sans-serif;
@@ -32,14 +52,23 @@
       line-height: 1.6;
     }
 
-    a { text-decoration: none; color: inherit; }
-    button { cursor: pointer; font-family: inherit; border: none; background: none; }
+    a {
+      text-decoration: none;
+      color: inherit;
+    }
+
+    button {
+      cursor: pointer;
+      font-family: inherit;
+      border: none;
+      background: none;
+    }
 
     nav {
       position: sticky;
       top: 0;
       z-index: 100;
-      background: rgba(15,18,25,0.82);
+      background: rgba(15, 18, 25, 0.82);
       backdrop-filter: blur(14px);
       -webkit-backdrop-filter: blur(14px);
       border-bottom: 1px solid var(--border);
@@ -62,9 +91,16 @@
       color: var(--white);
       letter-spacing: -0.5px;
     }
-    .logo span { color: var(--accent); }
 
-    .nav-actions { display: flex; align-items: center; gap: 12px; }
+    .logo span {
+      color: var(--accent);
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
 
     .btn-login {
       font-size: 0.875rem;
@@ -74,7 +110,10 @@
       border-radius: 8px;
       transition: color 0.2s;
     }
-    .btn-login:hover { color: var(--accent); }
+
+    .btn-login:hover {
+      color: var(--accent);
+    }
 
     .btn-register {
       font-size: 0.875rem;
@@ -85,8 +124,14 @@
       color: var(--bg);
       transition: background 0.2s, transform 0.15s;
     }
-    .btn-register:hover { background: var(--accent-hover); }
-    .btn-register:active { transform: scale(0.96); }
+
+    .btn-register:hover {
+      background: var(--accent-hover);
+    }
+
+    .btn-register:active {
+      transform: scale(0.96);
+    }
 
     .hero {
       position: relative;
@@ -99,10 +144,14 @@
       position: absolute;
       inset: 0;
       pointer-events: none;
-      background: radial-gradient(ellipse 70% 55% at 50% 0%, rgba(52,211,153,0.10) 0%, transparent 70%);
+      background: radial-gradient(ellipse 70% 55% at 50% 0%, rgba(52, 211, 153, 0.10) 0%, transparent 70%);
     }
 
-    .hero-content { position: relative; max-width: 860px; margin: 0 auto; }
+    .hero-content {
+      position: relative;
+      max-width: 860px;
+      margin: 0 auto;
+    }
 
     .hero-badge {
       display: inline-flex;
@@ -110,21 +159,31 @@
       gap: 8px;
       padding: 5px 14px;
       border-radius: 999px;
-      border: 1px solid rgba(52,211,153,0.3);
-      background: rgba(52,211,153,0.08);
+      border: 1px solid rgba(52, 211, 153, 0.3);
+      background: rgba(52, 211, 153, 0.08);
       margin-bottom: 24px;
     }
 
     .badge-dot {
-      width: 7px; height: 7px;
+      width: 7px;
+      height: 7px;
       border-radius: 50%;
       background: var(--accent);
       animation: pulse 2s infinite;
     }
 
     @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.5; transform: scale(0.85); }
+
+      0%,
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      50% {
+        opacity: 0.5;
+        transform: scale(0.85);
+      }
     }
 
     .badge-text {
@@ -145,7 +204,9 @@
       margin-bottom: 20px;
     }
 
-    .hero h1 .accent { color: var(--accent); }
+    .hero h1 .accent {
+      color: var(--accent);
+    }
 
     .hero-sub {
       font-size: 1.05rem;
@@ -155,7 +216,9 @@
       line-height: 1.75;
     }
 
-    .desc-section { padding: 0 24px 80px; }
+    .desc-section {
+      padding: 0 24px 80px;
+    }
 
     .desc-card {
       position: relative;
@@ -168,12 +231,18 @@
       overflow: hidden;
     }
 
-    @media (max-width: 640px) { .desc-card { padding: 28px 24px; } }
+    @media (max-width: 640px) {
+      .desc-card {
+        padding: 28px 24px;
+      }
+    }
 
     .desc-card::before {
       content: '';
       position: absolute;
-      top: 0; left: 0; right: 0;
+      top: 0;
+      left: 0;
+      right: 0;
       height: 1px;
       background: linear-gradient(90deg, transparent, var(--accent) 50%, transparent);
     }
@@ -181,10 +250,12 @@
     .desc-card::after {
       content: '';
       position: absolute;
-      top: -40px; right: -40px;
-      width: 200px; height: 200px;
+      top: -40px;
+      right: -40px;
+      width: 200px;
+      height: 200px;
       border-radius: 50%;
-      background: rgba(52,211,153,0.05);
+      background: rgba(52, 211, 153, 0.05);
       filter: blur(40px);
       pointer-events: none;
     }
@@ -196,9 +267,14 @@
       color: var(--text);
     }
 
-    .blog-section { padding: 0 24px 100px; }
+    .blog-section {
+      padding: 0 24px 100px;
+    }
 
-    .blog-inner { max-width: 1200px; margin: 0 auto; }
+    .blog-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
 
     .blog-header {
       display: flex;
@@ -228,7 +304,11 @@
       display: none;
     }
 
-    @media (min-width: 768px) { .blog-divider { display: block; } }
+    @media (min-width: 768px) {
+      .blog-divider {
+        display: block;
+      }
+    }
 
     .article-grid {
       display: grid;
@@ -236,7 +316,11 @@
       gap: 20px;
     }
 
-    @media (min-width: 900px) { .article-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (min-width: 900px) {
+      .article-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
 
     .article-card {
       position: relative;
@@ -253,15 +337,24 @@
     .article-card::before {
       content: '';
       position: absolute;
-      top: 0; left: 0; right: 0;
+      top: 0;
+      left: 0;
+      right: 0;
       height: 1px;
       background: linear-gradient(90deg, transparent, var(--accent) 50%, transparent);
       opacity: 0;
       transition: opacity 0.3s;
     }
 
-    .article-card:hover { border-color: rgba(52,211,153,0.4); transform: translateY(-4px); box-shadow: 0 0 40px -10px rgba(52,211,153,0.15); }
-    .article-card:hover::before { opacity: 1; }
+    .article-card:hover {
+      border-color: rgba(52, 211, 153, 0.4);
+      transform: translateY(-4px);
+      box-shadow: 0 0 40px -10px rgba(52, 211, 153, 0.15);
+    }
+
+    .article-card:hover::before {
+      opacity: 1;
+    }
 
     .card-meta {
       display: flex;
@@ -270,15 +363,19 @@
       margin-bottom: 18px;
     }
 
-    .card-date { font-size: 0.75rem; color: var(--muted); font-weight: 500; }
+    .card-date {
+      font-size: 0.75rem;
+      color: var(--muted);
+      font-weight: 500;
+    }
 
     .card-badge {
       font-size: 0.68rem;
       font-weight: 600;
       padding: 3px 10px;
       border-radius: 999px;
-      border: 1px solid rgba(52,211,153,0.3);
-      background: rgba(52,211,153,0.08);
+      border: 1px solid rgba(52, 211, 153, 0.3);
+      background: rgba(52, 211, 153, 0.08);
       color: var(--accent);
       letter-spacing: 0.05em;
     }
@@ -293,7 +390,9 @@
       transition: color 0.2s;
     }
 
-    .article-card:hover .card-title { color: var(--accent); }
+    .article-card:hover .card-title {
+      color: var(--accent);
+    }
 
     .card-excerpt {
       font-size: 0.85rem;
@@ -309,21 +408,27 @@
       font-weight: 600;
       padding: 8px 16px;
       border-radius: 8px;
-      border: 1px solid rgba(52,211,153,0.5);
+      border: 1px solid rgba(52, 211, 153, 0.5);
       color: var(--accent);
       background: transparent;
       transition: background 0.2s, color 0.2s, transform 0.15s;
     }
 
-    .btn-read:hover { background: var(--accent); color: var(--bg); }
-    .btn-read:active { transform: scale(0.95); }
+    .btn-read:hover {
+      background: var(--accent);
+      color: var(--bg);
+    }
+
+    .btn-read:active {
+      transform: scale(0.95);
+    }
 
     footer {
       border-top: 1px solid var(--border);
       padding: 28px 24px;
     }
 
-    .footer-inner {
+    footer .footer-inner {
       max-width: 1200px;
       margin: 0 auto;
       display: flex;
@@ -333,21 +438,38 @@
       gap: 12px;
     }
 
-    .footer-copy { font-size: 0.82rem; color: var(--muted); }
-    .footer-copy span { color: var(--accent); }
+    .footer-copy {
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
 
-    .footer-links { display: flex; align-items: center; gap: 20px; }
+    .footer-copy span {
+      color: var(--accent);
+    }
+
+    .footer-links {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
 
     .footer-links a {
       font-size: 0.78rem;
       color: var(--muted);
       transition: color 0.2s;
     }
-    .footer-links a:hover { color: var(--accent); }
 
-    .footer-loc { font-size: 0.78rem; color: #4b5563; }
+    .footer-links a:hover {
+      color: var(--accent);
+    }
+
+    .footer-loc {
+      font-size: 0.78rem;
+      color: #4b5563;
+    }
   </style>
 </head>
+
 <body>
 
   <nav>
@@ -466,4 +588,5 @@
   </footer>
 
 </body>
+
 </html>
